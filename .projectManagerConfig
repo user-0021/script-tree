@@ -1,0 +1,11 @@
+#Project info
+CC = gcc
+OBJ_FLAG = 
+CFLAG = -lglut -lGLU -lGL -lm `pkg-config --cflags --libs ftgl`
+SOURCE_DIR = src
+INCLUDE_DIR = include /usr/include/freetype2
+OBJ_DIR = obj
+
+
+#Output
+OUTPUT = out
