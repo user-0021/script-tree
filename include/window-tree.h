@@ -25,6 +25,8 @@ typedef struct{
 #define WINDOW_RESOLUTION_x2	((0x01 << 1) & BIT_CLEAR(0)) 
 #define WINDOW_RESOLUTION_x4	((0x02 << 1) & BIT_CLEAR(0))
 #define WINDOW_RESOLUTION_x8	((0x03 << 1) & BIT_CLEAR(0))
+#define WINDOW_IGNORE_POSITION	(0x10)
+#define WINDOW_IGNORE_SIZE		(0x20)
 
 #define WINDOW_MESSAGE_CREATE	0x00
 #define WINDOW_MESSAGE_DISPLAY	0x01
@@ -33,11 +35,16 @@ typedef struct{
 #define WINDOW_MESSAGE_MOUSE	0x04
 #define WINDOW_MESSAGE_MOTION	0x05
 #define WINDOW_MESSAGE_PMOTION	0x06
+#define WINDOW_MESSAGE_TIMER	0x07
 
 WindowSystem wtInit(int* argcp,char** argv);
 WINDOW_HANDLE wtCreateWindow(Window* win,char* name);
-void wtSetFlag(WINDOW_HANDLE handle,int flag);
 int wtGetFlag(WINDOW_HANDLE handle);
+void wtSetFlag(WINDOW_HANDLE handle,int flag);
+void wtRegistTimer(WINDOW_HANDLE handle,unsigned int mills);
 void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height);
 void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces);
 void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font);
+void wtMoveWindow(WINDOW_HANDLE handle,int x,int y);
+void wtResizeWindow(WINDOW_HANDLE handle,int width,int height);
+void wtReflesh();

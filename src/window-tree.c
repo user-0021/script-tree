@@ -30,6 +30,7 @@ typedef struct{
 }WindowSystemClass;
 
 WindowSystemClass* wtSystem = NULL;
+WindowClass* timerList[10] = {};
 
 void glDisplay(void);
 void glReShape(int w,int h);
@@ -37,7 +38,9 @@ void glKeyboard(unsigned char key, int x, int y);
 void glMouse(int button, int state, int x ,int y);
 void glMotion(int x, int y);
 void glPassiveMotion(int x, int y);
+void glTimer(int value);
 void applyFlag(WindowClass* class);
+void calcGrobalPos(WindowClass* class);
 WindowClass* getPointOwner(WindowClass* class,int x,int y);
 
 //init window system
@@ -46,7 +49,7 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 	memset(class,0,sizeof(WindowSystemClass));
 
 	glutInit(argcp,argv);
-	glutInitDisplayMode(GLUT_RGBA);
+	glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE);
 	
 	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
 
@@ -86,7 +89,13 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 
 		//create Vartiul Window
 		LINEAR_LIST_PUSH(((WindowClass*)class->body.parent)->children,class);
-	}else{
+	}else{	
+		//init pos size
+		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
+			glutInitWindowPosition(class->body.x,class->body.y);
+		if(!(WINDOW_IGNORE_SIZE & class->body.flag))
+			glutInitWindowSize(class->body.width,class->body.height);
+
 		//create glut window
 		class->windowID = glutCreateWindow(name);
 		
@@ -94,10 +103,6 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		char* color = (void*)&class->body.base_color;
 		glClearColor(CHAR_TO_F(color[3])*(1.0f/255.0f),CHAR_TO_F(color[2])*(1.0f/255.0f)
 					,CHAR_TO_F(color[1])*(1.0f/255.0f),CHAR_TO_F(color[0])*(1.0f/255.0f));
-
-		//init pos size
-		glutInitWindowPosition(class->body.x,class->body.y);
-		glutInitWindowSize(class->body.width,class->body.height);
 
 		//apply flag
 		applyFlag(class);
@@ -140,6 +145,19 @@ void wtSetFlag(WINDOW_HANDLE handle,int flag){
 //getFlag
 int wtGetFlag(WINDOW_HANDLE handle){
 	return ((WindowClass*)handle)->body.flag;
+}
+
+void wtRegistTimer(WINDOW_HANDLE handle,unsigned int mills){
+	int i;
+	int max = (sizeof(timerList) / sizeof(WindowClass*));
+
+
+	for(i = 0;i < max;i++){
+		if(timerList[i] == NULL){
+			timerList[i] = (WindowClass*)handle;
+			glutTimerFunc(mills,glTimer,i);
+		}
+	}
 }
 
 void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
@@ -210,10 +228,44 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	glRasterPos2i(x,y);
 	ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
+
+void wtMoveWindow(WINDOW_HANDLE handle,int x,int y){
+	WindowClass *class = handle;
+
+	class->body.x  = x;
+	class->body.y  = y;
+
+	if(class->body.parent == NULL)
+		glutPositionWindow(x,y);
+
+	calcGrobalPos(class);
+}
+
+void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
+	WindowClass *class = handle;
+
+	class->body.width  = width;
+	class->body.height = height;
+
+	if(class->body.parent == NULL){
+		glutReshapeWindow(width,height);
+
+		//setData
+		class->right = width;
+		class->top   = height;
+	}
+
+	calcGrobalPos(class);
+}
+
+void wtReflesh(){
+	glutPostRedisplay();
+}
+
 //Child window display
 void callChildrenDisplay(WindowClass* class){
 	WindowClass** itr;
-	LINEAR_LIST_FOREACH(class->children,itr){
+	LINEAR_LIST_FOREACH_R(class->children,itr){
 		//check pos
 		if((*itr)->left < class->left || (*itr)->bottom < class->bottom
 				|| (*itr)->left > class->right || (*itr)->bottom > class->top)
@@ -261,12 +313,12 @@ void glDisplay(void){ glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			break;
 		}
 	}
-
-	glFlush();
+	
+	glutSwapBuffers();
 }
 
 //Child window reshape
-void callChildrenReshape(WindowClass* class){
+void calcChildrenGlobalPos(WindowClass* class){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(class->children,itr){
 		//calc scale
@@ -285,7 +337,7 @@ void callChildrenReshape(WindowClass* class){
 		(*itr)->right = MIN((*itr)->right,class->right);
 		(*itr)->top   = MIN((*itr)->top,class->top);
 
-		callChildrenReshape(*itr);
+		calcChildrenGlobalPos(*itr);
 	}
 }
 
@@ -318,7 +370,7 @@ void glReShape(int w,int h){
 			}
 
 			//children
-			callChildrenReshape(*itr);
+			calcChildrenGlobalPos(*itr);
 		
 			//init pos and size
 			glLoadIdentity(); 	
@@ -364,7 +416,8 @@ void glMouse(int button, int state, int x ,int y){
 			y = (y - (*itr)->bottom) * (*itr)->vscale;			
 
 			owner->body.callback(WINDOW_MESSAGE_MOUSE,owner,
-					(((uint64_t)x<<32))|(y&0xFFFFFFFF),state,owner->body.userData);
+					(((uint64_t)x<<32))|(y&0xFFFFFFFF)
+					,(((uint64_t)state<<32))|(button&0xFFFFFFFF),owner->body.userData);
 		}
 	}
 }
@@ -409,6 +462,13 @@ void glPassiveMotion(int x, int y){
 	}
 }
 
+void glTimer(int value){
+	timerList[value]->body.callback(WINDOW_MESSAGE_TIMER,timerList[value],
+			0,0,timerList[value]->body.userData);
+	
+	timerList[value] = NULL;
+}
+
 void applyFlag(WindowClass* class){
 	//calc buffer size
 	int pWidth,pHeight;
@@ -424,6 +484,25 @@ void applyFlag(WindowClass* class){
 	gluOrtho2D(0,pWidth,0,pHeight);
 	glViewport(0,0,class->body.width,class->body.height);
 }
+
+void calcGrobalPos(WindowClass* class){
+	
+	if(class->body.parent == NULL){
+		//calc scale
+		if(class->body.flag & 1)
+			class->hscale = class->vscale = 
+					1.0f / ((unsigned int)1<<((class->body.flag>>1)&0x03));
+		else
+			class->hscale = class->vscale =
+			   		(float)((unsigned int)1<<((class->body.flag>>1)&0x03));
+
+		calcChildrenGlobalPos(class);
+	}else{
+		calcChildrenGlobalPos(class->body.parent);
+	}
+	
+}
+
 
 WindowClass* getPointOwner(WindowClass* class,int x,int y){
 	WindowClass** itr;
