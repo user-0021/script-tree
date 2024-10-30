@@ -1,4 +1,4 @@
-#include <window-tree.h>
+#include "window-tree.h"
 #include <GL/glut.h>
 #include <stdlib.h>
 #include <stdio.h>
