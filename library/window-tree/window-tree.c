@@ -68,7 +68,6 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 
 	//init list
 	class->children = LINEAR_LIST_CREATE(WindowClass*);
-
 	if(win->parent){
 		//calc scale
 		WindowClass* parent = class->body.parent;
@@ -238,6 +237,9 @@ void wtMoveWindow(WINDOW_HANDLE handle,int x,int y){
 	if(class->body.parent == NULL)
 		glutPositionWindow(x,y);
 
+	class->body.callback(WINDOW_MESSAGE_MOVE,class,
+		(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
+
 	calcGrobalPos(class);
 }
 
@@ -253,6 +255,9 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
 		//setData
 		class->right = width;
 		class->top   = height;
+	}else{
+		class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
+		(((uint64_t)width<<32))|(height&0xFFFFFFFF),0,class->body.userData);
 	}
 
 	calcGrobalPos(class);
@@ -339,6 +344,7 @@ void calcChildrenGlobalPos(WindowClass* class){
 
 		calcChildrenGlobalPos(*itr);
 	}
+
 }
 
 void glReShape(int w,int h){
@@ -392,9 +398,9 @@ void glKeyboard(unsigned char key, int x, int y){
 			y = (*itr)->body.height - y;
 
 			WindowClass* owner = getPointOwner((*itr),x,y);
-			
-			x = (x - (*itr)->left) * (*itr)->hscale;		
-			y = (y - (*itr)->bottom) * (*itr)->vscale;		
+				
+			x = (x - owner->left);		
+			y = (y - owner->bottom);
 
 			owner->body.callback(WINDOW_MESSAGE_KEYBOARD,owner,
 					(((uint64_t)x<<32))|(y&0xFFFFFFFF),key,owner->body.userData);
@@ -412,8 +418,8 @@ void glMouse(int button, int state, int x ,int y){
 
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
-			x = (x - (*itr)->left) * (*itr)->hscale;		
-			y = (y - (*itr)->bottom) * (*itr)->vscale;			
+			x = (x - owner->left);		
+			y = (y - owner->bottom);
 
 			owner->body.callback(WINDOW_MESSAGE_MOUSE,owner,
 					(((uint64_t)x<<32))|(y&0xFFFFFFFF)
@@ -433,8 +439,8 @@ void glMotion(int x, int y){
 
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
-			x = (x - (*itr)->left) * (*itr)->hscale;		
-			y = (y - (*itr)->bottom) * (*itr)->vscale;			
+			x = (x - owner->left);		
+			y = (y - owner->bottom);
 
 			owner->body.callback(WINDOW_MESSAGE_MOTION,owner,
 					(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,owner->body.userData);
@@ -453,8 +459,8 @@ void glPassiveMotion(int x, int y){
 
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
-			x = (x - (*itr)->left) * (*itr)->hscale;		
-			y = (y - (*itr)->bottom) * (*itr)->vscale;			
+			x = (x - owner->left);		
+			y = (y - owner->bottom);			
 
 			owner->body.callback(WINDOW_MESSAGE_PMOTION,owner,
 					(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,owner->body.userData);

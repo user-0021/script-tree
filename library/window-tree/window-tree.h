@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 #include <FTGL/ftgl.h>
 
@@ -28,14 +29,15 @@ typedef struct{
 #define WINDOW_IGNORE_POSITION	(0x10)
 #define WINDOW_IGNORE_SIZE		(0x20)
 
-#define WINDOW_MESSAGE_CREATE	0x00
-#define WINDOW_MESSAGE_DISPLAY	0x01
-#define WINDOW_MESSAGE_RESHAPE	0x02
-#define WINDOW_MESSAGE_KEYBOARD	0x03
-#define WINDOW_MESSAGE_MOUSE	0x04
-#define WINDOW_MESSAGE_MOTION	0x05
-#define WINDOW_MESSAGE_PMOTION	0x06
-#define WINDOW_MESSAGE_TIMER	0x07
+#define WINDOW_MESSAGE_CREATE	(0x00)
+#define WINDOW_MESSAGE_DISPLAY	(0x01)
+#define WINDOW_MESSAGE_RESHAPE	(0x02)
+#define WINDOW_MESSAGE_KEYBOARD	(0x03)
+#define WINDOW_MESSAGE_MOUSE	(0x04)
+#define WINDOW_MESSAGE_MOTION	(0x05)
+#define WINDOW_MESSAGE_PMOTION	(0x06)
+#define WINDOW_MESSAGE_TIMER	(0x07)
+#define WINDOW_MESSAGE_MOVE		(0x08)
 
 WindowSystem wtInit(int* argcp,char** argv);
 WINDOW_HANDLE wtCreateWindow(Window* win,char* name);
