@@ -3,8 +3,8 @@
 #include "defined.h"
 
 typedef struct{
-	int width;
-	int height;
+	int* width;
+	int* height;
 	int x;
 	int y;
 	uint8_t* cursor_status;
@@ -19,8 +19,8 @@ void ProgramList(char opcode,WINDOW_HANDLE handle
 			break;
 		}
 		case WINDOW_MESSAGE_RESHAPE:{
-			data->width  = (oprand1 >> 32)&0xFFFFFFFF;
-			data->height = (oprand1		 )&0xFFFFFFFF;			
+			(*data->width)  = (oprand1 >> 32)&0xFFFFFFFF;
+			(*data->height) = (oprand1		 )&0xFFFFFFFF;			
 			break;
 		}
 		case WINDOW_MESSAGE_MOVE:{
@@ -55,8 +55,12 @@ void ProgramList(char opcode,WINDOW_HANDLE handle
 			int y = (oprand1      )&0xFFFFFFFF;
 
 			if((*data->cursor_status) == CURSOR_STATUS_VRESIZE_ACTIVE){
-				wtResizeWindow(handle,data->width - x,data->height);
-				wtMoveWindow(handle,data->x + x,0);
+				int newWidth = (*data->width) - x;
+				
+				if(newWidth >= programListMin){
+					wtResizeWindow(handle,newWidth,(*data->height));
+					wtMoveWindow(handle,data->x + x,0);
+				}
 			}else{
 				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				(*data->cursor_status) = CURSOR_STATUS_IDLE;

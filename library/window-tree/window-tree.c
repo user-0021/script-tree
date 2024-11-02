@@ -10,6 +10,7 @@
 
 #define CHAR_TO_F(c) ((float)(0xFF & (unsigned int)c))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
+#define MAX(a,b) ((a) < (b) ? (b) : (a))
 
 typedef struct _window_class{
 	int windowID;
@@ -161,6 +162,14 @@ void wtRegistTimer(WINDOW_HANDLE handle,unsigned int mills){
 
 void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
 	WindowClass *class = handle;
+	WindowClass *parent = (WindowClass*)class->body.parent;
+
+	if(parent){
+		if(class->left <= parent->left)
+			x += class->left - parent->left;
+		if(class->bottom <= parent->bottom)
+			y += class->bottom - parent->bottom;
+	}
 
 	width  = (x+width)  * class->hscale;
 	height = (y+height) * class->vscale;
@@ -177,7 +186,15 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
 
 void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	WindowClass *class = handle;
-	
+	WindowClass *parent = (WindowClass*)class->body.parent;
+
+	if(parent){
+		if(class->left <= parent->left)
+			x += class->left - parent->left;
+		if(class->bottom <= parent->bottom)
+			y += class->bottom - parent->bottom;
+	}
+
 	x *= class->hscale;
 	y *= class->vscale;
 	
@@ -220,12 +237,52 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 
 void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	WindowClass *class = handle;
+	WindowClass *parent = (WindowClass*)class->body.parent;
 
+	if(parent){
+		if(class->left <= parent->left)
+			x += class->left - parent->left;
+		if(class->bottom <= parent->bottom)
+			y += class->bottom - parent->bottom;
+	}
+	
 	x *= class->hscale;
 	y *= class->vscale;
 
 	glRasterPos2i(x,y);
 	ftglRenderFont(font, str, FTGL_RENDER_ALL);
+}
+
+void wtWindowSetTopWindow(WINDOW_HANDLE handle){
+	WindowClass *class = handle;
+
+	WindowClass** list;
+	WindowClass** itr;
+
+	if(class->body.parent)
+		list = ((WindowClass*)class->body.parent)->children;
+	else
+		list = wtSystem->windowList;
+
+	LINEAR_LIST_FOREACH(list,itr){
+		if((*itr) == class){
+			WindowClass** next = LINEAR_LIST_NEXT(itr);
+			WindowClass** prev = LINEAR_LIST_PREV(itr);
+			WindowClass** last = LINEAR_LIST_LAST(itr);
+
+			WindowClass** next_prev = LINEAR_LIST_PREV(next);
+			WindowClass** prev_next = LINEAR_LIST_NEXT(prev);
+			next_prev = prev;
+			prev_next = next;
+
+			WindowClass** last_next = LINEAR_LIST_NEXT(last);
+			WindowClass** itr_prev  = LINEAR_LIST_PREV(prev);
+			last_next = itr;
+			itr_prev  = last;
+
+			return;
+		}
+	}
 }
 
 void wtMoveWindow(WINDOW_HANDLE handle,int x,int y){
@@ -270,14 +327,15 @@ void wtReflesh(){
 //Child window display
 void callChildrenDisplay(WindowClass* class){
 	WindowClass** itr;
-	LINEAR_LIST_FOREACH_R(class->children,itr){
+	LINEAR_LIST_FOREACH(class->children,itr){
 		//check pos
-		if((*itr)->left < class->left || (*itr)->bottom < class->bottom
-				|| (*itr)->left > class->right || (*itr)->bottom > class->top)
+		if((*itr)->left >= class->right || (*itr)->bottom >= class->top
+				|| (*itr)->right <= class->left || (*itr)->top <= class->bottom)
 			return;
 
 		//init view port
-		glViewport((*itr)->left,(*itr)->bottom,(*itr)->right - (*itr)->left,(*itr)->top - (*itr)->bottom);
+		glViewport(MAX((*itr)->left,class->left),MAX((*itr)->bottom,class->bottom)
+					,(*itr)->right - (*itr)->left,(*itr)->top - (*itr)->bottom);
 		
 		//set Color
 		char* color = (void*)&(*itr)->body.base_color;
@@ -287,7 +345,8 @@ void callChildrenDisplay(WindowClass* class){
 
 
 		//fill base
-		wtDrawSquare(*itr,0,0,(*itr)->body.width,(*itr)->body.height);		
+		if(color[0])
+			wtDrawSquare(*itr,0,0,(*itr)->body.width,(*itr)->body.height);		
 
 		//callback
 		(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
@@ -339,8 +398,8 @@ void calcChildrenGlobalPos(WindowClass* class){
 		(*itr)->top    = (*itr)->bottom  + (*itr)->body.height;
 		
 		//check limit
-		(*itr)->right = MIN((*itr)->right,class->right);
-		(*itr)->top   = MIN((*itr)->top,class->top);
+		(*itr)->top	   = MIN((*itr)->top   ,class->top   );
+		(*itr)->right  = MIN((*itr)->right ,class->right );
 
 		calcChildrenGlobalPos(*itr);
 	}
@@ -396,6 +455,13 @@ void glKeyboard(unsigned char key, int x, int y){
 	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
+			
+			#if (UINT_MAX == 0xFFFFFFFF)
+			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
+			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
+			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
+			#endif
+				return;
 
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
@@ -416,6 +482,13 @@ void glMouse(int button, int state, int x ,int y){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
 
+			#if (UINT_MAX == 0xFFFFFFFF)
+			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
+			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
+			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
+			#endif
+				return;
+	
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
 			x = (x - owner->left);		
@@ -436,6 +509,12 @@ void glMotion(int x, int y){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
 
+			#if (UINT_MAX == 0xFFFFFFFF)
+			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
+			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
+			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
+			#endif
+				return;
 
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
@@ -456,7 +535,14 @@ void glPassiveMotion(int x, int y){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
 
-
+			#if (UINT_MAX == 0xFFFFFFFF)
+			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
+				return;
+			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
+			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
+				return;
+			#endif
+			
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
 			x = (x - owner->left);		

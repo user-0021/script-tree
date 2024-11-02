@@ -22,6 +22,8 @@ typedef struct{
 
 FTGLfont * baseFont;
 
+void DrawBackGround(WINDOW_HANDLE handle, mainWindowData* data);
+
 void MainWindow(char opcode,WINDOW_HANDLE handle
 		,uint64_t oprand1,uint64_t oprand2,void* userData){
 	
@@ -39,60 +41,32 @@ void MainWindow(char opcode,WINDOW_HANDLE handle
 			prog.userData = malloc(sizeof(programListData));
 			memset(prog.userData,0,sizeof(programListData));
 			((programListData*)prog.userData)->cursor_status = &data->cursor_status;
+			((programListData*)prog.userData)->width  = &data->progWidth;
+			((programListData*)prog.userData)->height = &data->progHeight;
 			prog.callback = ProgramList;
 			data->programList = wtCreateWindow(&prog,"a");
 			break;
 		}
 		case WINDOW_MESSAGE_RESHAPE:{
+			float progScale = data->progWidth / (float)data->width;
+
 			data->width  = (oprand1 >> 32)&0xFFFFFFFF;
 			data->height = (oprand1		)&0xFFFFFFFF;
 			
 			data->progHeight = data->height;
-			if(!data->progWidth){
+			
+			if(data->width <= data->progWidth)
+				data->progWidth = data->width * progScale;
+			else if(!data->progWidth )
 				data->progWidth = 0.2 * data->width;
-			}
+			
 			wtResizeWindow(data->programList,data->progWidth,data->progHeight);
 			wtMoveWindow(data->programList,data->width - data->progWidth,0);
 			break;
 		}
 		case WINDOW_MESSAGE_DISPLAY:{
 			//display back ground
-			glColor4f(0.5,0.5,0.5,1.0);
-	
-			unsigned int period_scale = period * data->scale;
-	
-			if(!period_scale)
-				period_scale = 1;
-			
-			unsigned int dotRow    = (data->width  / period_scale) + 1;
-			unsigned int dotColumn = (data->height / period_scale) + 1;		
-			
-			int x = ((int)(data->x*data->scale) + (data->width>>1)) % period_scale;
-			int* y = malloc(sizeof(int) * dotColumn);		
-			y[0] = ((int)(data->y*data->scale) + (data->height>>1)) % period_scale;
-			
-
-			int r = radix * data->scale;
-			int p = pieces * data->scale;
-
-			if(p > pieces_max)
-				p = pieces_max;
-
-			if(r){
-				unsigned int i;
-				for(i = 0;i < dotRow;i++){
-					unsigned int j;
-					for(j = 0;j < dotColumn;j++){
-						if(!i && j)
-							y[j] = y[j-1] + period_scale;
-						
-						if(!(x & 0x80000000 || y[j] & 0x80000000))
-							wtDrawCircle(handle,x,y[j],r,p);
-					}
-
-					x += period_scale;
-				}
-			}
+			DrawBackGround(handle,data);
 			
 			//write scale
 			glColor4f(0,0,0,1.0);
@@ -152,13 +126,13 @@ void MainWindow(char opcode,WINDOW_HANDLE handle
 			int x = (oprand1 >> 32)&0xFFFFFFFF;
 			int y = (oprand1      )&0xFFFFFFFF;
 
-			if(data->cursor_status  == CURSOR_STATUS_VRESIZE_ACTIVE){
+			if(data->cursor_status  == CURSOR_STATUS_VRESIZE_ACTIVE){//programListResize
 				data->progHeight = data->height;
 				data->progWidth = data->width - x;
 				
 				wtResizeWindow(data->programList,data->progWidth,data->progHeight);
 				wtMoveWindow(data->programList,data->width - data->progWidth,0);
-			}else{
+			}else{//default
 				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				data->cursor_status = CURSOR_STATUS_IDLE;
 			}
@@ -169,11 +143,11 @@ void MainWindow(char opcode,WINDOW_HANDLE handle
 			int y = (oprand1      )&0xFFFFFFFF;
 			
 			int limit = data->width - data->progWidth;
-			if(x >= (limit - resizeArea)){
+			if(x >= (limit - resizeArea)){//programListResize
 				glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
 				data->cursor_status = CURSOR_STATUS_VRESIZE_IDLE;
 			}
-			else{
+			else{//default
 				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				data->cursor_status = CURSOR_STATUS_IDLE;
 			}
@@ -206,3 +180,40 @@ int main(int argc,char* argv[])
 	return 0;
 }
 
+void DrawBackGround(WINDOW_HANDLE handle,mainWindowData* data){
+	glColor4f(0.5,0.5,0.5,1.0f);
+	
+	unsigned int period_scale = period * data->scale;
+	
+	if(!period_scale)
+		period_scale = 1;
+			
+	unsigned int dotRow    = (data->width  / period_scale) + 1;
+	unsigned int dotColumn = (data->height / period_scale) + 1;		
+			
+	int x = ((int)(data->x*data->scale) + (data->width>>1)) % period_scale;
+	int* y = malloc(sizeof(int) * dotColumn);		
+	y[0] = ((int)(data->y*data->scale) + (data->height>>1)) % period_scale;
+			
+	int r = radix * data->scale;
+	int p = pieces * data->scale;
+
+	if(p > pieces_max)
+		p = pieces_max;
+
+	if(r){
+		unsigned int i;
+		for(i = 0;i < dotRow;i++){
+			unsigned int j;
+			for(j = 0;j < dotColumn;j++){
+				if(!i && j)
+					y[j] = y[j-1] + period_scale;
+				
+				if(!(x & 0x80000000 || y[j] & 0x80000000))
+					wtDrawCircle(handle,x,y[j],r,p);
+			}
+
+			x += period_scale;
+		}
+	}
+}
