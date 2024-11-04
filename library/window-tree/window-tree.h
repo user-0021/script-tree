@@ -19,7 +19,7 @@ typedef struct{
 	uint32_t base_color;
 	void* userData;
 	WINDOW_HANDLE parent;
-	void (*callback)(char,WINDOW_HANDLE,uint64_t,uint64_t,void*);
+	int (*callback)(char,WINDOW_HANDLE,uint64_t,uint64_t,void*);
 }Window;
 
 #define WINDOW_RESOLUTION_HALF	((0x01 << 1) | BIT_SET(0)  ) 
@@ -38,6 +38,7 @@ typedef struct{
 #define WINDOW_MESSAGE_PMOTION	(0x06)
 #define WINDOW_MESSAGE_TIMER	(0x07)
 #define WINDOW_MESSAGE_MOVE		(0x08)
+#define WINDOW_MESSAGE_DESTROY	(0x09)
 
 WindowSystem wtInit(int* argcp,char** argv);
 WINDOW_HANDLE wtCreateWindow(Window* win,char* name);
@@ -51,3 +52,4 @@ void wtWindowSetTopWindow(WINDOW_HANDLE handle);
 void wtMoveWindow(WINDOW_HANDLE handle,int x,int y);
 void wtResizeWindow(WINDOW_HANDLE handle,int width,int height);
 void wtReflesh();
+void wtMainLoop();

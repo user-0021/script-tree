@@ -12,6 +12,7 @@ void* do_not_use_list_get_last(void* list,unsigned int size);
 void* do_not_use_list_create(unsigned int size,void* next,void* pre);
 void do_not_use_list_release(void* list,unsigned int size);
 void do_not_use_list_push(void* list,const void* const data,unsigned int size);
+void do_not_use_list_delete(void* list,const void* const data,unsigned int size);
 
 #define LINEAR_LIST_NEXT(list) ((typeof(list))(*(void**)((void*)list + sizeof(typeof(*list)))))
 #define LINEAR_LIST_PREV(list) ((typeof(list))(*(void**)((void*)list +sizeof(typeof(*list))+sizeof(void*))))

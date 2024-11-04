@@ -10,7 +10,7 @@ typedef struct{
 	uint8_t* cursor_status;
 }programListData;
 
-void ProgramList(char opcode,WINDOW_HANDLE handle
+int ProgramList(char opcode,WINDOW_HANDLE handle
 		,uint64_t oprand1,uint64_t oprand2,void* userData){
 
 		programListData* data = userData;
@@ -41,7 +41,8 @@ void ProgramList(char opcode,WINDOW_HANDLE handle
 						if((*data->cursor_status) == CURSOR_STATUS_VRESIZE_IDLE){
 							(*data->cursor_status) = CURSOR_STATUS_VRESIZE_ACTIVE;
 						}
-					}else{
+					}else if(data->cursor_status != CURSOR_STATUS_IDLE){
+						glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 						(*data->cursor_status) = CURSOR_STATUS_IDLE;
 					}
 					break;
@@ -61,7 +62,7 @@ void ProgramList(char opcode,WINDOW_HANDLE handle
 					wtResizeWindow(handle,newWidth,(*data->height));
 					wtMoveWindow(handle,data->x + x,0);
 				}
-			}else{
+			}else if(data->cursor_status != CURSOR_STATUS_IDLE){
 				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				(*data->cursor_status) = CURSOR_STATUS_IDLE;
 			}
@@ -75,11 +76,18 @@ void ProgramList(char opcode,WINDOW_HANDLE handle
 				glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
 				(*data->cursor_status) = CURSOR_STATUS_VRESIZE_IDLE;
 			}
-			else{
+			else if(data->cursor_status != CURSOR_STATUS_IDLE){
 				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				(*data->cursor_status) = CURSOR_STATUS_IDLE;
 			}
 			break;
 		}
+		case WINDOW_MESSAGE_DESTROY:{
+			free(userData);
+			break;
+		}
+		default:
 	}
+
+	return 0;
 }

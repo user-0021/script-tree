@@ -1,5 +1,5 @@
 #include "window-tree.h"
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +20,7 @@ typedef struct _window_class{
 	int right;
 	int top;
 	int bottom;
+	struct _window_class* current;
 
 	Window body;
 	struct _window_class** children;
@@ -39,6 +40,7 @@ void glKeyboard(unsigned char key, int x, int y);
 void glMouse(int button, int state, int x ,int y);
 void glMotion(int x, int y);
 void glPassiveMotion(int x, int y);
+void glClose(void);
 void glTimer(int value);
 void applyFlag(WindowClass* class);
 void calcGrobalPos(WindowClass* class);
@@ -106,7 +108,7 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 
 		//apply flag
 		applyFlag(class);
-
+		
 		//calc scale
 		if(class->body.flag & 1)
 			class->hscale = class->vscale = 
@@ -126,6 +128,7 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		glutMouseFunc(glMouse);
 		glutMotionFunc(glMotion);
 		glutPassiveMotionFunc(glPassiveMotion);
+		glutCloseFunc(glClose);
 	}	
 
 	//push list
@@ -324,6 +327,12 @@ void wtReflesh(){
 	glutPostRedisplay();
 }
 
+void wtMainLoop(){
+	while(1){
+		glutMainLoopEvent();
+	}
+}
+
 //Child window display
 void callChildrenDisplay(WindowClass* class){
 	WindowClass** itr;
@@ -456,13 +465,6 @@ void glKeyboard(unsigned char key, int x, int y){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
 			
-			#if (UINT_MAX == 0xFFFFFFFF)
-			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
-			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
-			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
-			#endif
-				return;
-
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
 			x = (x - owner->left);		
@@ -476,18 +478,10 @@ void glKeyboard(unsigned char key, int x, int y){
 
 void glMouse(int button, int state, int x ,int y){	
 	int id = glutGetWindow();
-	
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
-
-			#if (UINT_MAX == 0xFFFFFFFF)
-			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
-			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
-			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
-			#endif
-				return;
 	
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
@@ -509,13 +503,6 @@ void glMotion(int x, int y){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
 
-			#if (UINT_MAX == 0xFFFFFFFF)
-			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
-			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
-			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
-			#endif
-				return;
-
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
 			x = (x - owner->left);		
@@ -529,19 +516,10 @@ void glMotion(int x, int y){
 
 void glPassiveMotion(int x, int y){
 	int id = glutGetWindow();
-	
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
 		if(id == (*itr)->windowID){
 			y = (*itr)->body.height - y;
-
-			#if (UINT_MAX == 0xFFFFFFFF)
-			if(((x|y) & (1<<31)) || x > (*itr)->right || y > (*itr)->top)
-				return;
-			#elif (UINT_MAX == 0xFFFFFFFFFFFFFFFF)
-			if(((x|y) & (1<<63)) || x > (*itr)->right || y > (*itr)->top) 
-				return;
-			#endif
 			
 			WindowClass* owner = getPointOwner((*itr),x,y);
 				
@@ -550,6 +528,41 @@ void glPassiveMotion(int x, int y){
 
 			owner->body.callback(WINDOW_MESSAGE_PMOTION,owner,
 					(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,owner->body.userData);
+		}
+	}
+}
+
+void wtDeleatewindowAll(WindowClass* class){
+	WindowClass** itr;
+	LINEAR_LIST_FOREACH(class->children,itr){
+		wtDeleatewindowAll(*itr);
+	}
+
+	LINEAR_LIST_RELEASE(class->children);
+	free(class);
+}
+
+void glClose(void){
+	int id = glutGetWindow();
+	WindowClass** itr;
+	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
+		if(id == (*itr)->windowID){
+			int ret = (*itr)->body.callback(WINDOW_MESSAGE_DESTROY,*itr,0,0,(*itr)->body.userData);
+			if(!ret){
+				glutDestroyWindow(id);
+				return;
+				wtDeleatewindowAll(*itr);
+				WindowClass** next = LINEAR_LIST_NEXT(itr);
+				WindowClass** prev = LINEAR_LIST_NEXT(itr);
+				if(next){
+					WindowClass** next_prev = LINEAR_LIST_PREV(next);
+					next_prev = prev;
+				}
+				WindowClass** prev_next = LINEAR_LIST_NEXT(prev);
+				prev_next = next;
+
+				free(itr);
+			}
 		}
 	}
 }
