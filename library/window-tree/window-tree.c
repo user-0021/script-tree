@@ -1,19 +1,26 @@
 #include "window-tree.h"
-#include <GL/freeglut.h>
+#include <GLFW/glfw3.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <limits.h>
 #include <linear_list.h>
-#include <FTGL/ftgl.h>
 
 #define CHAR_TO_F(c) ((float)(0xFF & (unsigned int)c))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
 #define MAX(a,b) ((a) < (b) ? (b) : (a))
+typedef struct{
+	float r;
+	float g;
+	float b;
+	float a;
+} _wt_RGBA;
 
 typedef struct _window_class{
-	int windowID;
+	GLFWwindow* window;
+	_wt_RGBA backColor;
+	char* windowName;
 	float vscale;
 	float hscale;
 	int left;
@@ -51,11 +58,19 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 	WindowSystemClass* class = malloc(sizeof(WindowSystemClass));
 	memset(class,0,sizeof(WindowSystemClass));
 
-	glutInit(argcp,argv);
-	glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE);
-	
-	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
+	//init library
+    if (!glfwInit()) {
+        fprintf(stderr,"Failed to initialize GLFW\n");
+		exit(0);
+    }										
 
+	//seet version
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINER);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	
+	//init list
+	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
 	wtSystem = class;
 
 	return (WindowSystem)class;
@@ -63,11 +78,18 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 
 //create Window
 WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
+	//create object
 	WindowClass* class = malloc(sizeof(WindowClass));
+	if(!class){
+		perror("")
+	}
+
 	memset(class,0,sizeof(WindowClass));
 
 	//copy data
 	memcpy(&class->body,win,sizeof(Window));
+	class->windowName = malloc(strlen(name)+1);
+	strcpy(class->windowName,name);
 
 	//init list
 	class->children = LINEAR_LIST_CREATE(WindowClass*);
@@ -92,15 +114,18 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		//create Vartiul Window
 		LINEAR_LIST_PUSH(((WindowClass*)class->body.parent)->children,class);
 	}else{	
-		//init pos size
-		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
-			glutInitWindowPosition(class->body.x,class->body.y);
-		if(!(WINDOW_IGNORE_SIZE & class->body.flag))
-			glutInitWindowSize(class->body.width,class->body.height);
 
-		//create glut window
-		class->windowID = glutCreateWindow(name);
+
+		//create ftgl window
+		class->window = glfwCreateWindow(class->width,class->height,name, NULL, NULL);
+    	if (!class->window) {
+        	printf("Failed to create window 1\n");
+        	glfwTerminate();
+        	return -1;
+    	}
 		
+		//init pos
+
 		//setColor
 		char* color = (void*)&class->body.base_color;
 		glClearColor(CHAR_TO_F(color[3])*(1.0f/255.0f),CHAR_TO_F(color[2])*(1.0f/255.0f)
@@ -238,6 +263,7 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	free(index);
 }
 
+/*
 void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
@@ -255,6 +281,7 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	glRasterPos2i(x,y);
 	ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
+*/
 
 void wtWindowSetTopWindow(WINDOW_HANDLE handle){
 	WindowClass *class = handle;

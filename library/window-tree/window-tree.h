@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
-#include <FTGL/ftgl.h>
+
+#define GLFW_MAJOR 3
+#define GLFW_MINOR 3
 
 #define BIT_SET(i) (1<<i)
 #define BIT_CLEAR(i) (~(0<<i))
@@ -47,7 +49,7 @@ void wtSetFlag(WINDOW_HANDLE handle,int flag);
 void wtRegistTimer(WINDOW_HANDLE handle,unsigned int mills);
 void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height);
 void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces);
-void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font);
+//void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font);
 void wtWindowSetTopWindow(WINDOW_HANDLE handle);
 void wtMoveWindow(WINDOW_HANDLE handle,int x,int y);
 void wtResizeWindow(WINDOW_HANDLE handle,int width,int height);
