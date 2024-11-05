@@ -24,10 +24,6 @@ typedef struct{
 	int (*callback)(char,WINDOW_HANDLE,uint64_t,uint64_t,void*);
 }Window;
 
-#define WINDOW_RESOLUTION_HALF	((0x01 << 1) | BIT_SET(0)  ) 
-#define WINDOW_RESOLUTION_x2	((0x01 << 1) & BIT_CLEAR(0)) 
-#define WINDOW_RESOLUTION_x4	((0x02 << 1) & BIT_CLEAR(0))
-#define WINDOW_RESOLUTION_x8	((0x03 << 1) & BIT_CLEAR(0))
 #define WINDOW_IGNORE_POSITION	(0x10)
 #define WINDOW_IGNORE_SIZE		(0x20)
 

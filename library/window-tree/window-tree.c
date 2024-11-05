@@ -38,8 +38,20 @@ typedef struct{
 	WindowClass** windowList;
 }WindowSystemClass;
 
+//global
 WindowSystemClass* wtSystem = NULL;
 WindowClass* timerList[10] = {};
+
+//callback
+void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos);
+void _glfw_callbacl_Wwindowsizefun(GLFWwindow *window, int width, int height);
+void _glfw_callbacl_windowclosefun(GLFWwindow *window);
+void _glfw_callbacl_windowrefreshfun(GLFWwindow *window);
+void _glfw_callbacl_windowfocusfun(GLFWwindow *window, int focused);
+void _glfw_callbacl_windowiconifyfun(GLFWwindow *window, int iconified);
+void _glfw_callbacl_windowmaximizefun(GLFWwindow *window, int maximized);
+void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height);
+void _glfw_callbacl_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale);
 
 void glDisplay(void);
 void glReShape(int w,int h);
@@ -49,19 +61,22 @@ void glMotion(int x, int y);
 void glPassiveMotion(int x, int y);
 void glClose(void);
 void glTimer(int value);
-void applyFlag(WindowClass* class);
 void calcGrobalPos(WindowClass* class);
 WindowClass* getPointOwner(WindowClass* class,int x,int y);
 
 //init window system
 WindowSystem wtInit(int* argcp,char** argv){//init env data
 	WindowSystemClass* class = malloc(sizeof(WindowSystemClass));
+	if(!class){
+		perror(__func__);
+		exit(-1);
+	}
 	memset(class,0,sizeof(WindowSystemClass));
 
 	//init library
     if (!glfwInit()) {
         fprintf(stderr,"Failed to initialize GLFW\n");
-		exit(0);
+		exit(-1);
     }										
 
 	//seet version
@@ -81,15 +96,32 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 	//create object
 	WindowClass* class = malloc(sizeof(WindowClass));
 	if(!class){
-		perror("")
+		perror(__func__);
+		if(wtSystem)
+        	glfwTerminate();
+		exit(-1);
 	}
-
 	memset(class,0,sizeof(WindowClass));
+	
+	//malloc name string
+	class->windowName = malloc(strlen(name)+1);
+	if(!class->windowName){
+		perror(__func__);
+		if(wtSystem)
+        	glfwTerminate();
+		exit(-1);
+	}
 
 	//copy data
 	memcpy(&class->body,win,sizeof(Window));
-	class->windowName = malloc(strlen(name)+1);
 	strcpy(class->windowName,name);
+
+	//calc color
+	char* color = (void*)&class->body.base_color;
+	class->backColor.r = CHAR_TO_F(color[3])*(1.0f/255.0f);
+	class->backColor.g = CHAR_TO_F(color[2])*(1.0f/255.0f);
+	class->backColor.b = CHAR_TO_F(color[1])*(1.0f/255.0f);
+	class->backColor.a = CHAR_TO_F(color[0])*(1.0f/255.0f);
 
 	//init list
 	class->children = LINEAR_LIST_CREATE(WindowClass*);
@@ -114,33 +146,34 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		//create Vartiul Window
 		LINEAR_LIST_PUSH(((WindowClass*)class->body.parent)->children,class);
 	}else{	
-
+		//set width & height
+		if(WINDOW_IGNORE_SIZE & class->body.flag)
+			class->body.width = class->body.height = 300;
 
 		//create ftgl window
-		class->window = glfwCreateWindow(class->width,class->height,name, NULL, NULL);
+		class->window = glfwCreateWindow(class->body.width,class->body.height,class->windowName, NULL, NULL);
     	if (!class->window) {
-        	printf("Failed to create window 1\n");
-        	glfwTerminate();
-        	return -1;
+        	fprintf(stderr,"%s:Failed to create window 1\n",__func__);
+			if(wtSystem)
+        		glfwTerminate();
+        	exit(-1);
     	}
 		
 		//init pos
+		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
+			glfwSetWindowPos(class->window,class->body.x,class->body.y);
 
 		//setColor
-		char* color = (void*)&class->body.base_color;
-		glClearColor(CHAR_TO_F(color[3])*(1.0f/255.0f),CHAR_TO_F(color[2])*(1.0f/255.0f)
-					,CHAR_TO_F(color[1])*(1.0f/255.0f),CHAR_TO_F(color[0])*(1.0f/255.0f));
+		glClearColor(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
+	
+		//sync window size
+		glfwGetWindowSize(class->window,&class->body.width,&class->body.height);
 
-		//apply flag
-		applyFlag(class);
-		
 		//calc scale
-		if(class->body.flag & 1)
-			class->hscale = class->vscale = 
-					1.0f / ((unsigned int)1<<((class->body.flag>>1)&0x03));
-		else
-			class->hscale = class->vscale =
-	 		  		(float)((unsigned int)1<<((class->body.flag>>1)&0x03));
+		int width,height;
+		glfwGetFramebufferSize(class->window,&width,&height);
+		class->hscale = width/((float)class->body.width);
+		class->vscale = height/((float)class->body.height);
 
 		//set global pos
 		class->right = class->body.width;
@@ -599,22 +632,6 @@ void glTimer(int value){
 			0,0,timerList[value]->body.userData);
 	
 	timerList[value] = NULL;
-}
-
-void applyFlag(WindowClass* class){
-	//calc buffer size
-	int pWidth,pHeight;
-	if(class->body.flag & 1){
-		pWidth  = class->body.width  >> ((class->body.flag>>1) & 0x03);
-		pHeight = class->body.height >> ((class->body.flag>>1) & 0x03);
-	}else{
-		pWidth  = class->body.width  << ((class->body.flag>>1) & 0x03);
-		pHeight = class->body.height << ((class->body.flag>>1) & 0x03);
-	}
-	
-	//init pos and size
-	gluOrtho2D(0,pWidth,0,pHeight);
-	glViewport(0,0,class->body.width,class->body.height);
 }
 
 void calcGrobalPos(WindowClass* class){
