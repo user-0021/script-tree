@@ -58,7 +58,9 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 		}
 		case WINDOW_MESSAGE_DISPLAY:{
 			//display back ground
-			DrawBackGround(handle,data);
+	
+
+	//		DrawBackGround(handle,data);
 			
 			//write scale
 			glColor4f(0,0,0,1.0);
@@ -175,6 +177,8 @@ void DrawBackGround(WINDOW_HANDLE handle, nodeViewData* data){
 
 	if(p > pieces_max)
 		p = pieces_max;
+	
+	printf("%d\n",dotColumn);
 
 	if(r){
 		unsigned int i;

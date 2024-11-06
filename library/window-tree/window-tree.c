@@ -187,6 +187,11 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 	//call
 	class->body.callback(WINDOW_MESSAGE_CREATE,class,0,0,class->body.userData);
 
+	//resize
+	class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
+			(((uint64_t)class->body.width<<32))|(class->body.height&0xFFFFFFFF),
+			0,class->body.userData);
+
 	return (WINDOW_HANDLE)class;
 }
 
@@ -279,6 +284,19 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
 
+	int width  = 10;
+	int height = 10;
+	x = 10;
+	y = 10;
+
+	int points[4][2] = {{x,y},{width,y},{width,height},{x,height}};
+	unsigned char index[4] = {0,1,3,2};
+	
+	glVertexPointer(2,GL_INT,0,points);
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glDrawElements(GL_TRIANGLE_STRIP,4,GL_UNSIGNED_BYTE,index);
+
+	return;
 	if(parent){
 		if(class->left <= parent->left)
 			x += class->left - parent->left;
@@ -388,8 +406,10 @@ void wtWindowLoop(WindowClass** itr){
 		//clear
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 		
+		glClearDepth(1.0);
+
 		//callback
-		//(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
+		(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
 		//children callback
 		//callChildrenDisplay(*itr);
 		
@@ -464,9 +484,16 @@ void calcChildrenGlobalPos(WindowClass* class){
 
 		calcChildrenGlobalPos(*itr);
 	}
-
 }
 
+void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height){
+	WindowClass** itr;
+	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
+		if(window == (*itr)->window){
+			glViewport(0,0,width,height);
+		}
+	}
+}
 /*
 void glReShape(int w,int h){
 	int id = glutGetWindow();
