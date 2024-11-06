@@ -14,19 +14,18 @@ typedef struct{
 	int progWidth;
 	int progHeight;
 	WINDOW_HANDLE programList;
-}scriptViewData;
+}nodeViewData;
 
 
-void DrawBackGround(WINDOW_HANDLE handle, scriptViewData* data);
+void DrawBackGround(WINDOW_HANDLE handle, nodeViewData* data);
 
-int ScriptView(char opcode,WINDOW_HANDLE handle
+int NodeView(char opcode,WINDOW_HANDLE handle
 		,uint64_t oprand1,uint64_t oprand2,void* userData){
 	
-	scriptViewData* data = userData;
+	nodeViewData* data = userData;
 	switch(opcode){
 		case WINDOW_MESSAGE_CREATE:{
 			data->scale = 1;
-			wtRegistTimer(handle,mills);
 
 			Window prog = {};
 			prog.base_color = 0x6F6F6FFF;
@@ -80,7 +79,7 @@ int ScriptView(char opcode,WINDOW_HANDLE handle
 							data->cursor_status = CURSOR_STATUS_VRESIZE_ACTIVE;
 						}
 					}else if(data->cursor_status != CURSOR_STATUS_IDLE){
-						glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+			//			glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 						data->cursor_status = CURSOR_STATUS_IDLE;
 					}
 					break;
@@ -127,7 +126,7 @@ int ScriptView(char opcode,WINDOW_HANDLE handle
 				wtResizeWindow(data->programList,data->progWidth,data->progHeight);
 				wtMoveWindow(data->programList,data->width - data->progWidth,0);
 			}else if(data->cursor_status != CURSOR_STATUS_IDLE){//default
-				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+			//	glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				data->cursor_status = CURSOR_STATUS_IDLE;
 			}
 			break;
@@ -138,18 +137,16 @@ int ScriptView(char opcode,WINDOW_HANDLE handle
 			
 			int limit = data->width - data->progWidth;
 			if(x >= (limit - resizeArea)){//programListResize
-				glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
+			//	glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
 				data->cursor_status = CURSOR_STATUS_VRESIZE_IDLE;
 			}
 			else if(data->cursor_status != CURSOR_STATUS_IDLE){//default
-				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+			//	glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				data->cursor_status = CURSOR_STATUS_IDLE;
 			}
 			break;
 		}
 		case WINDOW_MESSAGE_TIMER:{
-			wtRegistTimer(handle,mills);
-			wtReflesh();
 			break;
 		}
 		default:
@@ -158,7 +155,7 @@ int ScriptView(char opcode,WINDOW_HANDLE handle
 }
 
 
-void DrawBackGround(WINDOW_HANDLE handle, scriptViewData* data){
+void DrawBackGround(WINDOW_HANDLE handle, nodeViewData* data){
 	glColor4f(0.5,0.5,0.5,1.0f);
 	
 	unsigned int period_scale = period * data->scale;

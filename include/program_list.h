@@ -42,7 +42,7 @@ int ProgramList(char opcode,WINDOW_HANDLE handle
 							(*data->cursor_status) = CURSOR_STATUS_VRESIZE_ACTIVE;
 						}
 					}else if(data->cursor_status != CURSOR_STATUS_IDLE){
-						glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+						//glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 						(*data->cursor_status) = CURSOR_STATUS_IDLE;
 					}
 					break;
@@ -63,7 +63,7 @@ int ProgramList(char opcode,WINDOW_HANDLE handle
 					wtMoveWindow(handle,data->x + x,0);
 				}
 			}else if(data->cursor_status != CURSOR_STATUS_IDLE){
-				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+				//glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				(*data->cursor_status) = CURSOR_STATUS_IDLE;
 			}
 			break;
@@ -73,11 +73,11 @@ int ProgramList(char opcode,WINDOW_HANDLE handle
 			int y = (oprand1      )&0xFFFFFFFF;
 			
 			if(x <= resizeArea){
-				glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
+				//glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
 				(*data->cursor_status) = CURSOR_STATUS_VRESIZE_IDLE;
 			}
 			else if(data->cursor_status != CURSOR_STATUS_IDLE){
-				glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+				//glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
 				(*data->cursor_status) = CURSOR_STATUS_IDLE;
 			}
 			break;

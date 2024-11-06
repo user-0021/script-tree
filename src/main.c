@@ -53,16 +53,16 @@ int main(int argc,char* argv[])
 	baseFont = ftglCreatePixmapFont(FONT_PATH);
 
 	Window main;
-	main.flag = WINDOW_RESOLUTION_x2 | WINDOW_IGNORE_POSITION | WINDOW_IGNORE_SIZE;
+	main.flag =  WINDOW_IGNORE_POSITION | WINDOW_IGNORE_SIZE;
 	main.base_color = 0x2F2F2FFF;
-	main.userData = malloc(sizeof(scriptViewData));
+	main.userData = malloc(sizeof(nodeViewData));
 	main.parent = NULL;
-	main.callback = ScriptView;
-	memset(main.userData,0,sizeof(scriptViewData));
-	((scriptViewData*)main.userData)->font = baseFont;
+	main.callback = NodeView;
+	memset(main.userData,0,sizeof(nodeViewData));
+	((nodeViewData*)main.userData)->font = baseFont;
 	WINDOW_HANDLE handle = wtCreateWindow(&main,"script-tree");
-	main.userData = malloc(sizeof(scriptViewData));
-	((scriptViewData*)main.userData)->font = baseFont;
+	main.userData = malloc(sizeof(nodeViewData));
+	((nodeViewData*)main.userData)->font = baseFont;
 	WINDOW_HANDLE ahandle = wtCreateWindow(&main,"script-tree");
 	
 	wtMainLoop();

@@ -45,7 +45,6 @@ WindowClass* timerList[10] = {};
 //callback
 void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos);
 void _glfw_callbacl_Wwindowsizefun(GLFWwindow *window, int width, int height);
-void _glfw_callbacl_windowclosefun(GLFWwindow *window);
 void _glfw_callbacl_windowrefreshfun(GLFWwindow *window);
 void _glfw_callbacl_windowfocusfun(GLFWwindow *window, int focused);
 void _glfw_callbacl_windowiconifyfun(GLFWwindow *window, int iconified);
@@ -53,16 +52,11 @@ void _glfw_callbacl_windowmaximizefun(GLFWwindow *window, int maximized);
 void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height);
 void _glfw_callbacl_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale);
 
-void glDisplay(void);
-void glReShape(int w,int h);
-void glKeyboard(unsigned char key, int x, int y);
-void glMouse(int button, int state, int x ,int y);
-void glMotion(int x, int y);
-void glPassiveMotion(int x, int y);
-void glClose(void);
-void glTimer(int value);
+//func
 void calcGrobalPos(WindowClass* class);
+void callChildrenDisplay(WindowClass* class);
 WindowClass* getPointOwner(WindowClass* class,int x,int y);
+void wtDeleateWindowAll(WindowClass* class);
 
 //init window system
 WindowSystem wtInit(int* argcp,char** argv){//init env data
@@ -81,7 +75,7 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 
 	//seet version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINER);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINOR);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	
 	//init list
@@ -158,7 +152,9 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
         		glfwTerminate();
         	exit(-1);
     	}
-		
+		GLFWwindow* befor = glfwGetCurrentContext();
+		glfwMakeContextCurrent(class->window);
+
 		//init pos
 		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
 			glfwSetWindowPos(class->window,class->body.x,class->body.y);
@@ -179,18 +175,14 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		class->right = class->body.width;
 		class->top  = class->body.height;
 		
-		//regist callback
-		glutDisplayFunc(glDisplay);
-		glutReshapeFunc(glReShape);
-		glutKeyboardFunc(glKeyboard);
-		glutMouseFunc(glMouse);
-		glutMotionFunc(glMotion);
-		glutPassiveMotionFunc(glPassiveMotion);
-		glutCloseFunc(glClose);
-	}	
+		//regist callbacka
 
-	//push list
-	LINEAR_LIST_PUSH(wtSystem->windowList,class);
+		//undo
+		glfwMakeContextCurrent(befor);
+	
+		//push list
+		LINEAR_LIST_PUSH(wtSystem->windowList,class);
+	}	
 	
 	//call
 	class->body.callback(WINDOW_MESSAGE_CREATE,class,0,0,class->body.userData);
@@ -206,19 +198,6 @@ void wtSetFlag(WINDOW_HANDLE handle,int flag){
 //getFlag
 int wtGetFlag(WINDOW_HANDLE handle){
 	return ((WindowClass*)handle)->body.flag;
-}
-
-void wtRegistTimer(WINDOW_HANDLE handle,unsigned int mills){
-	int i;
-	int max = (sizeof(timerList) / sizeof(WindowClass*));
-
-
-	for(i = 0;i < max;i++){
-		if(timerList[i] == NULL){
-			timerList[i] = (WindowClass*)handle;
-			glutTimerFunc(mills,glTimer,i);
-		}
-	}
 }
 
 void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
@@ -296,7 +275,6 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	free(index);
 }
 
-/*
 void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
@@ -314,37 +292,41 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	glRasterPos2i(x,y);
 	ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
-*/
 
 void wtWindowSetTopWindow(WINDOW_HANDLE handle){
 	WindowClass *class = handle;
 
-	WindowClass** list;
-	WindowClass** itr;
 
-	if(class->body.parent)
-		list = ((WindowClass*)class->body.parent)->children;
-	else
-		list = wtSystem->windowList;
+	if(class->body.parent){
+		WindowClass** itr;
+		LINEAR_LIST_FOREACH(((WindowClass*)class->body.parent)->children,itr){
+			if((*itr) == class){
+				//get next 
+				WindowClass** next = LINEAR_LIST_NEXT(itr);
+				
+				if(next){//if next availeble
+					//get last and prev
+					WindowClass** last = LINEAR_LIST_LAST(itr);
+					WindowClass** prev = LINEAR_LIST_PREV(itr);
 
-	LINEAR_LIST_FOREACH(list,itr){
-		if((*itr) == class){
-			WindowClass** next = LINEAR_LIST_NEXT(itr);
-			WindowClass** prev = LINEAR_LIST_PREV(itr);
-			WindowClass** last = LINEAR_LIST_LAST(itr);
+					//get pointer to itr
+					WindowClass** next_prev = LINEAR_LIST_PREV(next);
+					WindowClass** prev_next = LINEAR_LIST_NEXT(prev);
+					//over writ pointer 
+					next_prev = prev;
+					prev_next = next;
 
-			WindowClass** next_prev = LINEAR_LIST_PREV(next);
-			WindowClass** prev_next = LINEAR_LIST_NEXT(prev);
-			next_prev = prev;
-			prev_next = next;
-
-			WindowClass** last_next = LINEAR_LIST_NEXT(last);
-			WindowClass** itr_prev  = LINEAR_LIST_PREV(prev);
-			last_next = itr;
-			itr_prev  = last;
-
-			return;
+					//push last
+					WindowClass** last_next = LINEAR_LIST_NEXT(last);
+					WindowClass** itr_prev  = LINEAR_LIST_PREV(prev);
+					last_next = itr;
+					itr_prev  = last;
+				}
+				return;
+			}
 		}
+	}
+	else{
 	}
 }
 
@@ -355,10 +337,10 @@ void wtMoveWindow(WINDOW_HANDLE handle,int x,int y){
 	class->body.y  = y;
 
 	if(class->body.parent == NULL)
-		glutPositionWindow(x,y);
+		glfwSetWindowPos(class->window,x,y);
 
-	class->body.callback(WINDOW_MESSAGE_MOVE,class,
-		(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
+//	class->body.callback(WINDOW_MESSAGE_MOVE,class,
+//		(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
 
 	calcGrobalPos(class);
 }
@@ -370,26 +352,83 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
 	class->body.height = height;
 
 	if(class->body.parent == NULL){
-		glutReshapeWindow(width,height);
+		glfwSetWindowSize(class->window,width,height);
 
 		//setData
 		class->right = width;
 		class->top   = height;
 	}else{
-		class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
-		(((uint64_t)width<<32))|(height&0xFFFFFFFF),0,class->body.userData);
+//		class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
+//			(((uint64_t)width<<32))|(height&0xFFFFFFFF),0,class->body.userData);
 	}
 
 	calcGrobalPos(class);
 }
 
-void wtReflesh(){
-	glutPostRedisplay();
+void wtWindowLoop(WindowClass** itr){
+	if(itr == NULL)
+		return;
+	static int i = 0;
+	printf("%p,%d\n",itr,i++);
+	if(glfwWindowShouldClose((*itr)->window)){//if pushed closed button
+		//call destroy callback
+		if(!(*itr)->body.callback(WINDOW_MESSAGE_DESTROY,*itr,0,0,(*itr)->body.userData)){//ret 0
+			printf("foo\n");
+			//destroy window
+			glfwDestroyWindow((*itr)->window);
+			wtDeleateWindowAll(*itr);
+			
+			//get next and prev 
+			WindowClass** next = LINEAR_LIST_NEXT(itr);
+			WindowClass** prev = LINEAR_LIST_PREV(itr);
+
+			//call next
+			wtWindowLoop(next);
+			
+			//set next prev
+			if(next){
+				WindowClass** next_prev = LINEAR_LIST_PREV(next);
+				next_prev = prev;
+			}
+
+			//set prev next
+			WindowClass** prev_next = LINEAR_LIST_NEXT(prev);
+			prev_next = NULL;
+		}
+	}else{	
+		//set Current
+		glfwMakeContextCurrent((*itr)->window);
+
+		//clear
+		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+		
+		//callback
+		//(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
+		//children callback
+		//callChildrenDisplay(*itr);
+		
+		//glViewport(0,0,(*itr)->body.width,(*itr)->body.heigrs((*itr)->window;
+
+		//swap
+		glfwSwapBuffers((*itr)->window);
+
+		//call next
+		wtWindowLoop(LINEAR_LIST_NEXT(itr));
+	}
 }
 
 void wtMainLoop(){
 	while(1){
-		glutMainLoopEvent();
+		WindowClass** itr = LINEAR_LIST_NEXT(wtSystem->windowList);
+		if(!itr){
+			glfwTerminate();
+			return;
+		}
+
+		wtWindowLoop(itr);
+			
+		//poll
+		glfwPollEvents();
 	}
 }
 
@@ -407,15 +446,7 @@ void callChildrenDisplay(WindowClass* class){
 					,(*itr)->right - (*itr)->left,(*itr)->top - (*itr)->bottom);
 		
 		//set Color
-		char* color = (void*)&(*itr)->body.base_color;
-		glColor4f(CHAR_TO_F(color[3])*(1.0f/255.0f),CHAR_TO_F(color[2])*(1.0f/255.0f)
-					,CHAR_TO_F(color[1])*(1.0f/255.0f),CHAR_TO_F(color[0])*(1.0f/255.0f));
-		
-
-
-		//fill base
-		if(color[0])
-			wtDrawSquare(*itr,0,0,(*itr)->body.width,(*itr)->body.height);		
+		glColor4f(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
 
 		//callback
 		(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
@@ -424,31 +455,6 @@ void callChildrenDisplay(WindowClass* class){
 	}
 }
 
-void glDisplay(void){ glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
- 
-	int id = glutGetWindow();
-	
-	//clear
-	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-
-	WindowClass** itr;
-	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
-		if(id == (*itr)->windowID){//match id
-
-			//init viewport
-			glViewport(0,0,(*itr)->body.width,(*itr)->body.height);
-			//callback
-			(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
-			//children callback
-			callChildrenDisplay(*itr);
-			//resrt viewport
-			glViewport(0,0,(*itr)->body.width,(*itr)->body.height);
-			break;
-		}
-	}
-	
-	glutSwapBuffers();
-}
 
 //Child window reshape
 void calcChildrenGlobalPos(WindowClass* class){
@@ -475,6 +481,7 @@ void calcChildrenGlobalPos(WindowClass* class){
 
 }
 
+/*
 void glReShape(int w,int h){
 	int id = glutGetWindow();
 
@@ -592,15 +599,7 @@ void glPassiveMotion(int x, int y){
 	}
 }
 
-void wtDeleatewindowAll(WindowClass* class){
-	WindowClass** itr;
-	LINEAR_LIST_FOREACH(class->children,itr){
-		wtDeleatewindowAll(*itr);
-	}
 
-	LINEAR_LIST_RELEASE(class->children);
-	free(class);
-}
 
 void glClose(void){
 	int id = glutGetWindow();
@@ -632,7 +631,7 @@ void glTimer(int value){
 			0,0,timerList[value]->body.userData);
 	
 	timerList[value] = NULL;
-}
+}*/
 
 void calcGrobalPos(WindowClass* class){
 	
@@ -664,3 +663,14 @@ WindowClass* getPointOwner(WindowClass* class,int x,int y){
 	}
 	return class;
 }
+
+void wtDeleateWindowAll(WindowClass* class){
+	WindowClass** itr;
+	LINEAR_LIST_FOREACH(class->children,itr){
+		wtDeleateWindowAll(*itr);
+	}
+
+	LINEAR_LIST_RELEASE(class->children);
+	free(class);
+}
+

@@ -12,7 +12,7 @@ obj/window-tree.o: library/window-tree/window-tree.c
 	gcc -o obj/window-tree.o library/window-tree/window-tree.c -I include -I /usr/include/freetype2 -I library/linear_list -I library/window-tree -c
 
 out: obj/main.o obj/linear_list.o obj/window-tree.o
-	gcc -o out obj/main.o obj/linear_list.o obj/window-tree.o -lglut -lGLU -lGL -lm `pkg-config --cflags --libs ftgl`
+	gcc -o out obj/main.o obj/linear_list.o obj/window-tree.o -lglfw -lGL -lm `pkg-config --cflags --libs ftgl`
 
 all: clean out
 
