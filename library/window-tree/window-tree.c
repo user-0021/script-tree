@@ -368,32 +368,18 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
 void wtWindowLoop(WindowClass** itr){
 	if(itr == NULL)
 		return;
-	static int i = 0;
-	printf("%p,%d\n",itr,i++);
 	if(glfwWindowShouldClose((*itr)->window)){//if pushed closed button
 		//call destroy callback
 		if(!(*itr)->body.callback(WINDOW_MESSAGE_DESTROY,*itr,0,0,(*itr)->body.userData)){//ret 0
-			printf("foo\n");
 			//destroy window
 			glfwDestroyWindow((*itr)->window);
 			wtDeleateWindowAll(*itr);
 			
-			//get next and prev 
-			WindowClass** next = LINEAR_LIST_NEXT(itr);
-			WindowClass** prev = LINEAR_LIST_PREV(itr);
-
 			//call next
-			wtWindowLoop(next);
-			
-			//set next prev
-			if(next){
-				WindowClass** next_prev = LINEAR_LIST_PREV(next);
-				next_prev = prev;
-			}
+			wtWindowLoop(LINEAR_LIST_NEXT(itr));
 
-			//set prev next
-			WindowClass** prev_next = LINEAR_LIST_NEXT(prev);
-			prev_next = NULL;
+			//delete element
+			LINEAR_LIST_DELETE(itr);
 		}
 	}else{	
 		//set Current

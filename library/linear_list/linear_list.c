@@ -44,3 +44,19 @@ void* do_not_use_list_get_last(void* list,unsigned int size){
 
 	return ite;
 }
+
+void do_not_use_list_delete(void* element,unsigned int size){
+
+	void* next = *(void**)(element + size);
+	void* prev = *(void**)(element + size + sizeof(void*));
+
+	if(next != NULL){
+		*(void**)(next + size + sizeof(void*)) = prev;
+	}
+
+	if(prev != NULL){
+		*(void**)(prev + size) = next;
+	}
+
+	free(element);
+}
