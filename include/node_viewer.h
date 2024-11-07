@@ -38,7 +38,7 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 			((programListData*)prog.userData)->width  = &data->progWidth;
 			((programListData*)prog.userData)->height = &data->progHeight;
 			prog.callback = ProgramList;
-			data->programList = wtCreateWindow(&prog,"a");
+			data->programList = wtCreateWindow(&prog,"list");
 			break;
 		}
 		case WINDOW_MESSAGE_RESHAPE:{

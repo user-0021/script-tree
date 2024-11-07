@@ -45,7 +45,7 @@ WindowClass* timerList[10] = {};
 
 //callback
 void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos);
-void _glfw_callbacl_Wwindowsizefun(GLFWwindow *window, int width, int height);
+void _glfw_callbacl_windowsizefun(GLFWwindow *window, int width, int height);
 void _glfw_callbacl_windowrefreshfun(GLFWwindow *window);
 void _glfw_callbacl_windowfocusfun(GLFWwindow *window, int focused);
 void _glfw_callbacl_windowiconifyfun(GLFWwindow *window, int iconified);
@@ -176,7 +176,9 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		class->right = class->body.width;
 		class->top  = class->body.height;
 		
-		//regist callbacka
+		//regist callback
+		glfwSetFramebufferSizeCallback(class->window,_glfw_callbacl_framebuffersizefun);
+		//glfwSetWindowSizeCallback(class->window,_glfw_callbacl_windowsizefun);
 
 		//undo
 		glfwMakeContextCurrent(befor);
@@ -272,8 +274,8 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	float vscaleRadius = (radius / (float)class->body.height) * class->vscale;
 	float deltaRad = (2*M_PI)/pieces;
 	for(i = 1;i <= pieces;i++){
-		points[(i<<1)  ] = x1 + cos(rad)*0.01;
-		points[(i<<1)+1] = y1 + sin(rad)*0.01;
+		points[(i<<1)  ] = x1 + cos(rad)*hscaleRadius;
+		points[(i<<1)+1] = y1 + sin(rad)*vscaleRadius;
 
 		rad += deltaRad;
 		index[i] = i;
@@ -404,16 +406,12 @@ void wtWindowLoop(WindowClass** itr){
 		//clear
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 		
-		glClearDepth(1.0);
-
 		//callback
-		glViewport(0,0,(*itr)->body.width,(*itr)->body.height);
+		glViewport(0,0,(*itr)->body.width*(*itr)->hscale,(*itr)->body.height*(*itr)->vscale);
 		(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
 		
 		//children callback
 		callChildrenDisplay(*itr);
-		
-		glViewport(0,0,(*itr)->body.width,(*itr)->body.height);
 
 		//swap
 		glfwSwapBuffers((*itr)->window);
@@ -452,7 +450,12 @@ void callChildrenDisplay(WindowClass* class){
 					,(*itr)->right - (*itr)->left,(*itr)->top - (*itr)->bottom);
 		
 		//set Color
-		glColor4f(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
+		glColor4f((*itr)->backColor.r,(*itr)->backColor.g,
+			(*itr)->backColor.b,(*itr)->backColor.a);
+
+		//draw base
+		if(class->backColor.a > (1/(float)2550))
+			wtDrawSquare(class,0,0,class->body.width,class->body.height);
 
 		//callback
 		(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
@@ -486,14 +489,46 @@ void calcChildrenGlobalPos(WindowClass* class){
 	}
 }
 
+
+void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos){
+}
+
+void _glfw_callbacl_windowsizefun(GLFWwindow *window, int width, int height){
+}
+
+void _glfw_callbacl_windowrefreshfun(GLFWwindow *window){
+}
+
+void _glfw_callbacl_windowfocusfun(GLFWwindow *window, int focused){
+}
+
+void _glfw_callbacl_windowiconifyfun(GLFWwindow *window, int iconified){
+}
+
+void _glfw_callbacl_windowmaximizefun(GLFWwindow *window, int maximized){
+}
+
 void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
-		if(window == (*itr)->window){
-			glViewport(0,0,width,height);
+		if(window == (*itr)->window){	
+
+			glfwGetWindowSize(window,&(*itr)->body.width,&(*itr)->body.height);
+			(*itr)->hscale = width  / (*itr)->body.width;
+			(*itr)->vscale = height / (*itr)->body.height;
+
+			(*itr)->body.callback(WINDOW_MESSAGE_RESHAPE,*itr,
+					(((uint64_t)(*itr)->body.width<<32))|((*itr)->body.height&0xFFFFFFFF),
+					0,(*itr)->body.userData);
+			
+			break;
 		}
 	}
 }
+
+void _glfw_callbacl_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale){
+}
+
 /*
 void glReShape(int w,int h){
 	int id = glutGetWindow();

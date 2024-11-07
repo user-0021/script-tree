@@ -1,7 +1,7 @@
 #pragma once
 
 const static int period = 120;
-const static int radix  = 3;
+const static int radix  = 5;
 const static int pieces = 40;
 const static int pieces_max = 40;
 const static float zoomScale = 0.1;

@@ -60,6 +60,7 @@ int main(int argc,char* argv[])
 	((nodeViewData*)main.userData)->font = baseFont;
 	WINDOW_HANDLE handle = wtCreateWindow(&main,"script-tree");
 	main.userData = malloc(sizeof(nodeViewData));
+	memset(main.userData,0,sizeof(nodeViewData));
 	((nodeViewData*)main.userData)->font = baseFont;
 	WINDOW_HANDLE ahandle = wtCreateWindow(&main,"script-tree");
 	
