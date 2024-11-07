@@ -1,9 +1,9 @@
 #Project info
 CC = gcc
 OBJ_FLAG = 
-CFLAG = -lglfw -lGL -lm `pkg-config --cflags --libs ftgl`
-SOURCE_DIR = src library/linear_list library/window-tree
-INCLUDE_DIR = include /usr/include/freetype2 library/linear_list library/window-tree
+CFLAG = -lglfw -lGLEW -lGL -lm `pkg-config --cflags --libs ftgl`
+SOURCE_DIR = src library/linear_list library/window-tree library/glad
+INCLUDE_DIR = include /usr/include/freetype2 library/linear_list library/window-tree library/glad
 OBJ_DIR = obj
 
 

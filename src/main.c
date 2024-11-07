@@ -1,5 +1,3 @@
-#include <GL/glut.h>
-#include <FTGL/ftgl.h>
 #include <stdio.h>
 #include <window-tree.h>
 #include "program_list.h"
@@ -68,4 +66,3 @@ int main(int argc,char* argv[])
 	wtMainLoop();
 	return 0;
 }
-

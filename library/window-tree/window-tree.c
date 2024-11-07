@@ -1,4 +1,5 @@
 #include "window-tree.h"
+#include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -76,7 +77,7 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 	//seet version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINOR);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	
 	//init list
 	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
@@ -216,15 +217,19 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
 			y += class->bottom - parent->bottom;
 	}
 
-	width  = (x+width)  * class->hscale;
-	height = (y+height) * class->vscale;
-	x *= class->hscale;
-	y *= class->vscale;
+	x -= (class->body.width >>1);
+	y -= (class->body.height>>1);
 
-	int points[4][2] = {{x,y},{width,y},{width,height},{x,height}};
+	float x2 = ((x+width ) / (float)(class->body.width  >>1 )) * class->hscale;
+	float y2 = ((y+height) / (float)(class->body.height >>1)) * class->vscale;
+	float x1 = (x / (float)(class->body.width  >> 1)) * class->hscale;
+	float y1 = (y / (float)(class->body.height >> 1)) * class->vscale;
+	
+
+	GLfloat points[4][2] = {{x1,y1},{x2,y1},{x2,y2},{x1,y2}};
 	unsigned char index[4] = {0,1,3,2};
 	
-	glVertexPointer(2,GL_INT,0,points);
+	glVertexPointer(2,GL_FLOAT,0,points);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glDrawElements(GL_TRIANGLE_STRIP,4,GL_UNSIGNED_BYTE,index);
 }
@@ -240,39 +245,42 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 			y += class->bottom - parent->bottom;
 	}
 
-	x *= class->hscale;
-	y *= class->vscale;
+	x -= (class->body.width >>1);
+	y -= (class->body.height>>1);
+
+	float x1 = (x / (float)(class->body.width  >> 1)) * class->hscale;
+	float y1 = (y / (float)(class->body.height >> 1)) * class->vscale;
 	
 	#if INT_MAX == 0x7FFFFFFF
-		int* points = malloc((pieces + 1) << 3);
+		float* points = malloc(((pieces + 1)<<1) * sizeof(float));
 		unsigned int* index = malloc((pieces + 2) <<2);
 	#elif INT_MAX == 0x7FFFFFFFFFFFFFFF
-		int* points = malloc((pieces + 1) << 4);
+		float* points = malloc(((pieces + 1)<<1) * sizeof(float));
 		unsigned int* index = malloc((pieces + 2) <<3);
 	#else
 		"ERR:This program only support 4byte int or 8byte int"
 	#endif
 	
 	//center point
-	points[0] = x;
-	points[1] = y;
+	points[0] = x1;
+	points[1] = y1;
 	index[0] = 0;
 
 	int i;
 	float rad = 0;
-	float hscaleRadius = radius * class->hscale;
-	float vscaleRadius = radius * class->vscale;
+	float hscaleRadius = (radius / (float)class->body.width ) * class->hscale;
+	float vscaleRadius = (radius / (float)class->body.height) * class->vscale;
 	float deltaRad = (2*M_PI)/pieces;
 	for(i = 1;i <= pieces;i++){
-		points[(i<<1)  ] = x + cos(rad)*hscaleRadius;
-		points[(i<<1)+1] = y + sin(rad)*vscaleRadius;
+		points[(i<<1)  ] = x1 + cos(rad)*0.01;
+		points[(i<<1)+1] = y1 + sin(rad)*0.01;
 
 		rad += deltaRad;
 		index[i] = i;
 	}
 	index[pieces+1] = 1;
 
-	glVertexPointer(2,GL_INT,0,points);
+	glVertexPointer(2,GL_FLOAT,0,points);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glDrawElements(GL_TRIANGLE_FAN,pieces+2,GL_UNSIGNED_INT,index);
 
@@ -284,30 +292,20 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
 
-	int width  = 10;
-	int height = 10;
-	x = 10;
-	y = 10;
-
-	int points[4][2] = {{x,y},{width,y},{width,height},{x,height}};
-	unsigned char index[4] = {0,1,3,2};
-	
-	glVertexPointer(2,GL_INT,0,points);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glDrawElements(GL_TRIANGLE_STRIP,4,GL_UNSIGNED_BYTE,index);
-
-	return;
 	if(parent){
 		if(class->left <= parent->left)
 			x += class->left - parent->left;
 		if(class->bottom <= parent->bottom)
 			y += class->bottom - parent->bottom;
 	}
-	
-	x *= class->hscale;
-	y *= class->vscale;
 
-	glRasterPos2i(x,y);
+	x -= (class->body.width>>1);
+	y -= (class->body.height>>1);
+
+	float fx = (x / (float)(class->body.width>>1 )) * class->hscale;
+	float fy = (y / (float)(class->body.height>>1)) * class->vscale;
+
+	glRasterPos2f(fx,fy);
 	ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
 
@@ -357,8 +355,8 @@ void wtMoveWindow(WINDOW_HANDLE handle,int x,int y){
 	if(class->body.parent == NULL)
 		glfwSetWindowPos(class->window,x,y);
 
-//	class->body.callback(WINDOW_MESSAGE_MOVE,class,
-//		(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
+	class->body.callback(WINDOW_MESSAGE_MOVE,class,
+		(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
 
 	calcGrobalPos(class);
 }
@@ -376,8 +374,8 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
 		class->right = width;
 		class->top   = height;
 	}else{
-//		class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
-//			(((uint64_t)width<<32))|(height&0xFFFFFFFF),0,class->body.userData);
+		class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
+			(((uint64_t)width<<32))|(height&0xFFFFFFFF),0,class->body.userData);
 	}
 
 	calcGrobalPos(class);
@@ -409,11 +407,13 @@ void wtWindowLoop(WindowClass** itr){
 		glClearDepth(1.0);
 
 		//callback
+		glViewport(0,0,(*itr)->body.width,(*itr)->body.height);
 		(*itr)->body.callback(WINDOW_MESSAGE_DISPLAY,*itr,0,0,(*itr)->body.userData);
-		//children callback
-		//callChildrenDisplay(*itr);
 		
-		//glViewport(0,0,(*itr)->body.width,(*itr)->body.heigrs((*itr)->window;
+		//children callback
+		callChildrenDisplay(*itr);
+		
+		glViewport(0,0,(*itr)->body.width,(*itr)->body.height);
 
 		//swap
 		glfwSwapBuffers((*itr)->window);
