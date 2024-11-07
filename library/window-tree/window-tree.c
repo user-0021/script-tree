@@ -177,8 +177,10 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		class->top  = class->body.height;
 		
 		//regist callback
-		glfwSetFramebufferSizeCallback(class->window,_glfw_callbacl_framebuffersizefun);
 		//glfwSetWindowSizeCallback(class->window,_glfw_callbacl_windowsizefun);
+		glfwSetWindowPosCallback(class->window,_glfw_callbacl_windowposfun)
+		glfwSetFramebufferSizeCallback(class->window,_glfw_callbacl_framebuffersizefun);
+
 
 		//undo
 		glfwMakeContextCurrent(befor);
@@ -354,13 +356,13 @@ void wtMoveWindow(WINDOW_HANDLE handle,int x,int y){
 	class->body.x  = x;
 	class->body.y  = y;
 
-	if(class->body.parent == NULL)
+	if(class->body.parent == NULL){
 		glfwSetWindowPos(class->window,x,y);
-
-	class->body.callback(WINDOW_MESSAGE_MOVE,class,
-		(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
-
-	calcGrobalPos(class);
+	}else{
+		class->body.callback(WINDOW_MESSAGE_MOVE,class,
+			(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,class->body.userData);
+		calcGrobalPos(class);
+	}
 }
 
 void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
@@ -432,7 +434,7 @@ void wtMainLoop(){
 		wtWindowLoop(itr);
 			
 		//poll
-		glfwPollEvents();
+		glfwWaitEventsTimeout(0.02);
 	}
 }
 
@@ -491,6 +493,17 @@ void calcChildrenGlobalPos(WindowClass* class){
 
 
 void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos){
+	WindowClass** itr;
+	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
+		if(window == (*itr)->window){	
+			(*itr)->body.x = xpos;
+			(*itr)->body.y = ypos;
+
+			class->body.callback(WINDOW_MESSAGE_MOVE,class,
+				(((uint64_t)xpos<<32))|(ypos&0xFFFFFFFF),0,class->body.userData);
+			break;
+		}
+	}
 }
 
 void _glfw_callbacl_windowsizefun(GLFWwindow *window, int width, int height){
