@@ -62,7 +62,7 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 			DrawBackGround(handle,data);
 			
 			//write scale
-			glColor4f(0,0,0,1.0);
+			wtSetColor4f(handle,0,0,0,1.0);
 			char percent[5];
 			sprintf(percent,"%3.0f",data->scale*100);
 			wtDrawText(handle,0,0,percent,data->font);
@@ -80,7 +80,7 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 							data->cursor_status = CURSOR_STATUS_VRESIZE_ACTIVE;
 						}
 					}else if(data->cursor_status != CURSOR_STATUS_IDLE){
-			//			glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+						wtSetCursor(handle,WT_CURSOR_DEFAULT);
 						data->cursor_status = CURSOR_STATUS_IDLE;
 					}
 					break;
@@ -127,7 +127,7 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 				wtResizeWindow(data->programList,data->progWidth,data->progHeight);
 				wtMoveWindow(data->programList,data->width - data->progWidth,0);
 			}else if(data->cursor_status != CURSOR_STATUS_IDLE){//default
-			//	glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+				wtSetCursor(handle,WT_CURSOR_DEFAULT);
 				data->cursor_status = CURSOR_STATUS_IDLE;
 			}
 			break;
@@ -138,11 +138,11 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 			
 			int limit = data->width - data->progWidth;
 			if(x >= (limit - resizeArea)){//programListResize
-			//	glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
+				wtSetCursor(handle,WT_CURSOR_LEFT_RIGHT);
 				data->cursor_status = CURSOR_STATUS_VRESIZE_IDLE;
 			}
 			else if(data->cursor_status != CURSOR_STATUS_IDLE){//default
-			//	glutSetCursor(GLUT_CURSOR_RIGHT_ARROW);
+				wtSetCursor(handle,WT_CURSOR_DEFAULT);
 				data->cursor_status = CURSOR_STATUS_IDLE;
 			}
 			break;
@@ -157,7 +157,7 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 
 
 void DrawBackGround(WINDOW_HANDLE handle, nodeViewData* data){
-	glColor4f(0.5,0.5,0.5,1.0f);
+	wtSetColor4f(handle,0.5,0.5,0.5,1.0f);
 	
 	unsigned int period_scale = period * data->scale;
 	

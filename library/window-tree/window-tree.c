@@ -1,5 +1,5 @@
 #include "window-tree.h"
-#include <GL/gl.h>
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,6 +7,7 @@
 #include <math.h>
 #include <limits.h>
 #include <linear_list.h>
+#include "shader.h"
 
 #define CHAR_TO_F(c) ((float)(0xFF & (unsigned int)c))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
@@ -31,6 +32,7 @@ typedef struct _window_class{
 	struct _window_class* current;
 
 	Window body;
+	unsigned int shaderProgram;
 	struct _window_class** children;
 }WindowClass;
 
@@ -42,6 +44,7 @@ typedef struct{
 //global
 WindowSystemClass* wtSystem = NULL;
 WindowClass* timerList[10] = {};
+
 
 //callback
 static void _glfw_callback_windowposfun(GLFWwindow *window, int xpos, int ypos);
@@ -55,10 +58,12 @@ static void _glfw_callback_windowcontentscalefun(GLFWwindow *window, float xscal
 static void _glfw_callback_cursorposition(GLFWwindow* window, double xpos, double ypos);
 
 //func
-static void calcGrobalPos(WindowClass* class);
+static void wtWindowLoop(WindowClass** itr);
 static void callChildrenDisplay(WindowClass* class);
+static void calcGrobalPos(WindowClass* class);
 static WindowClass* getPointOwner(WindowClass* class,int x,int y);
 static void wtDeleateWindowAll(WindowClass* class);
+
 
 //init window system
 WindowSystem wtInit(int* argcp,char** argv){//init env data
@@ -78,6 +83,7 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 	//seet version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINOR);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	
 	//init list
 	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
@@ -160,8 +166,9 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
 			glfwSetWindowPos(class->window,class->body.x,class->body.y);
 
+		printf("a\n");
 		//setColor
-		glClearColor(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
+		//glClearColor(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
 	
 		//sync window size
 		glfwGetWindowSize(class->window,&class->body.width,&class->body.height);
@@ -181,6 +188,58 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		glfwSetWindowPosCallback(class->window,_glfw_callback_windowposfun);
 		glfwSetFramebufferSizeCallback(class->window,_glfw_callback_framebuffersizefun);
 		glfwSetCursorPosCallback(class->window,_glfw_callback_cursorposition);
+	
+		printf("a\n");
+		//vertex shader
+		unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vertexShader, 1,&_wtVertexShaderSource, NULL);
+		glCompileShader(vertexShader);
+
+		printf("a\n");
+
+		//check compile
+		int success;
+		char infoLog[512];
+		glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+		if (!success) {
+			glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+			fprintf(stderr,"%s:Faild compile vertex shader%s\n",__func__,infoLog);
+			exit(-1);
+		}
+
+		//fragment shader
+		unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+		glShaderSource(fragmentShader, 1,&_wtFragmentShaderSource, NULL);
+		glCompileShader(fragmentShader);
+
+		//check compile
+		glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+		if (!success) {
+			glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+			fprintf(stderr,"%s:Faild compile fragmend shader%s\n",__func__,infoLog);
+			exit(-1);
+		}
+
+		//link shader program
+		class->shaderProgram = glCreateProgram();
+		glAttachShader(class->shaderProgram, vertexShader);
+		glAttachShader(class->shaderProgram, fragmentShader);
+		glLinkProgram(class->shaderProgram);
+
+		//check link 
+		glGetProgramiv(class->shaderProgram, GL_LINK_STATUS, &success);
+		if (!success) {
+			glGetProgramInfoLog(class->shaderProgram, 512, NULL, infoLog);
+			fprintf(stderr,"%s:Faild compile fragmend shader%s\n",__func__,infoLog);
+			exit(-1);
+		}
+	
+		//delate shader
+		glDeleteShader(fragmentShader);
+		glDeleteShader(vertexShader);
+	
+		//attach
+		glUseProgram(class->shaderProgram);
 
 
 		//undo
@@ -188,8 +247,8 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 	
 		//push list
 		LINEAR_LIST_PUSH(wtSystem->windowList,class);
-	}	
-	
+		}
+
 	//call
 	class->body.callback(WINDOW_MESSAGE_CREATE,class,0,0,class->body.userData);
 
@@ -229,20 +288,46 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
 	float y2 = ((y+height) / (float)(class->body.height >>1)) * class->vscale;
 	float x1 = (x / (float)(class->body.width  >> 1)) * class->hscale;
 	float y1 = (y / (float)(class->body.height >> 1)) * class->vscale;
-	
 
+	//create data
 	GLfloat points[4][2] = {{x1,y1},{x2,y1},{x2,y2},{x1,y2}};
 	unsigned char index[4] = {0,1,3,2};
 	
-	glVertexPointer(2,GL_FLOAT,0,points);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glDrawElements(GL_TRIANGLE_STRIP,4,GL_UNSIGNED_BYTE,index);
+	//generate vao & vbo
+	unsigned int VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+
+    //bind vao & vbo
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(points),points, GL_STATIC_DRAW);
+
+	printf("A\n");
+    //attach
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,0,0);
+    glEnableVertexAttribArray(0);
+
+	glDrawArrays(GL_TRIANGLE_FAN,0,4);
+
+    //dettach
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);	
+
+	
+	//glVertexPointer(2,GL_FLOAT,0,points);
+	//glEnableClientState(GL_VERTEX_ARRAY);
+	//glDrawElements(GL_TRIANGLE_STRIP,4,GL_UNSIGNED_BYTE,index);
+	
+	//deleate
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
 }
 
 void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
-
+	return;
 	if(parent){
 		if(class->left <= parent->left)
 			x += class->left - parent->left;
@@ -285,9 +370,9 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	}
 	index[pieces+1] = 1;
 
-	glVertexPointer(2,GL_FLOAT,0,points);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glDrawElements(GL_TRIANGLE_FAN,pieces+2,GL_UNSIGNED_INT,index);
+	//glVertexPointer(2,GL_FLOAT,0,points);
+	//glEnableClientState(GL_VERTEX_ARRAY);
+	//glDrawElements(GL_TRIANGLE_FAN,pieces+2,GL_UNSIGNED_INT,index);
 
 	free(points);
 	free(index);
@@ -310,8 +395,8 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	float fx = (x / (float)(class->body.width>>1 )) * class->hscale;
 	float fy = (y / (float)(class->body.height>>1)) * class->vscale;
 
-	glRasterPos2f(fx,fy);
-	ftglRenderFont(font, str, FTGL_RENDER_ALL);
+	//glRasterPos2f(fx,fy);
+	//ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
 
 void wtWindowSetTopWindow(WINDOW_HANDLE handle){
@@ -385,7 +470,13 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
 	}
 }
 
-void wtWindowLoop(WindowClass** itr){
+void wtSetColor4f(WINDOW_HANDLE handle,float r,float g,float b,float a){
+	WindowClass* class = handle;
+	GLint loc = glGetUniformLocation(class->shaderProgram,"userSetColor");
+	glUniform4f(loc,r,g,b,a);
+}
+
+static void wtWindowLoop(WindowClass** itr){
 	if(itr == NULL)
 		return;
 	if(glfwWindowShouldClose((*itr)->window)){//if pushed closed button
@@ -438,6 +529,9 @@ void wtMainLoop(){
 	}
 }
 
+void wtSetCursor(WINDOW_HANDLE handle,uint8_t mode){
+}
+
 //Child window display
 void callChildrenDisplay(WindowClass* class){
 	WindowClass** itr;
@@ -452,7 +546,7 @@ void callChildrenDisplay(WindowClass* class){
 					,(*itr)->right - (*itr)->left,(*itr)->top - (*itr)->bottom);
 		
 		//set Color
-		glColor4f((*itr)->backColor.r,(*itr)->backColor.g,
+		wtSetColor4f((WINDOW_HANDLE)class,(*itr)->backColor.r,(*itr)->backColor.g,
 			(*itr)->backColor.b,(*itr)->backColor.a);
 
 		//draw base
@@ -548,7 +642,23 @@ static void _glfw_callback_windowcontentscalefun(GLFWwindow *window, float xscal
 }
 
 static void _glfw_callback_cursorposition(GLFWwindow* window, double xpos, double ypos){
-	printf("%lf,%lf\n",xpos,ypos);
+	WindowClass** itr;
+	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
+		if(window == (*itr)->window){
+			int x = xpos;
+			int y = ypos;
+
+			y = (*itr)->body.height - y;
+			
+			WindowClass* owner = getPointOwner((*itr),x,y);
+				
+			x = (x - owner->left);		
+			y = (y - owner->bottom);			
+
+			owner->body.callback(WINDOW_MESSAGE_PMOTION,owner,
+					(((uint64_t)x<<32))|(y&0xFFFFFFFF),0,owner->body.userData);
+		}
+	}
 }
 
 /*

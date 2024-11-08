@@ -15,7 +15,7 @@ obj/glad.o: library/glad/glad.c
 	gcc -o obj/glad.o library/glad/glad.c -I include -I /usr/include/freetype2 -I library/linear_list -I library/window-tree -I library/glad -c
 
 out: obj/main.o obj/linear_list.o obj/window-tree.o obj/glad.o
-	gcc -o out obj/main.o obj/linear_list.o obj/window-tree.o obj/glad.o -lglfw -lGLEW -lGL -lm `pkg-config --cflags --libs ftgl`
+	gcc -o out obj/main.o obj/linear_list.o obj/window-tree.o obj/glad.o -lglfw -ldl -lGL -lm `pkg-config --cflags --libs ftgl`
 
 all: clean out
 

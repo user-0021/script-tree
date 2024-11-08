@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <FTGL/ftgl.h>
 
-#define GLFW_MAJOR 2
-#define GLFW_MINOR 1
+#define GLFW_MAJOR 3
+#define GLFW_MINOR 2
 
 #define BIT_SET(i) (1<<i)
 #define BIT_CLEAR(i) (~(0<<i))
@@ -24,6 +24,9 @@ typedef struct{
 	WINDOW_HANDLE parent;
 	int (*callback)(char,WINDOW_HANDLE,uint64_t,uint64_t,void*);
 }Window;
+
+#define WT_CURSOR_DEFAULT    (0)
+#define WT_CURSOR_LEFT_RIGHT (1)
 
 #define WINDOW_IGNORE_POSITION	(0x10)
 #define WINDOW_IGNORE_SIZE		(0x20)
@@ -50,4 +53,6 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font);
 void wtWindowSetTopWindow(WINDOW_HANDLE handle);
 void wtMoveWindow(WINDOW_HANDLE handle,int x,int y);
 void wtResizeWindow(WINDOW_HANDLE handle,int width,int height);
+void wtSetColor4f(WINDOW_HANDLE handle,float r,float g,float b,float a);
 void wtMainLoop();
+void wtSetCursor(WINDOW_HANDLE handle,uint8_t mode);
