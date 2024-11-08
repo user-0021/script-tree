@@ -44,20 +44,21 @@ WindowSystemClass* wtSystem = NULL;
 WindowClass* timerList[10] = {};
 
 //callback
-void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos);
-void _glfw_callbacl_windowsizefun(GLFWwindow *window, int width, int height);
-void _glfw_callbacl_windowrefreshfun(GLFWwindow *window);
-void _glfw_callbacl_windowfocusfun(GLFWwindow *window, int focused);
-void _glfw_callbacl_windowiconifyfun(GLFWwindow *window, int iconified);
-void _glfw_callbacl_windowmaximizefun(GLFWwindow *window, int maximized);
-void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height);
-void _glfw_callbacl_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale);
+static void _glfw_callback_windowposfun(GLFWwindow *window, int xpos, int ypos);
+static void _glfw_callback_windowsizefun(GLFWwindow *window, int width, int height);
+static void _glfw_callback_windowrefreshfun(GLFWwindow *window);
+static void _glfw_callback_windowfocusfun(GLFWwindow *window, int focused);
+static void _glfw_callback_windowiconifyfun(GLFWwindow *window, int iconified);
+static void _glfw_callback_windowmaximizefun(GLFWwindow *window, int maximized);
+static void _glfw_callback_framebuffersizefun(GLFWwindow *window, int width, int height);
+static void _glfw_callback_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale);
+static void _glfw_callback_cursorposition(GLFWwindow* window, double xpos, double ypos);
 
 //func
-void calcGrobalPos(WindowClass* class);
-void callChildrenDisplay(WindowClass* class);
-WindowClass* getPointOwner(WindowClass* class,int x,int y);
-void wtDeleateWindowAll(WindowClass* class);
+static void calcGrobalPos(WindowClass* class);
+static void callChildrenDisplay(WindowClass* class);
+static WindowClass* getPointOwner(WindowClass* class,int x,int y);
+static void wtDeleateWindowAll(WindowClass* class);
 
 //init window system
 WindowSystem wtInit(int* argcp,char** argv){//init env data
@@ -77,7 +78,6 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 	//seet version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINOR);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	
 	//init list
 	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
@@ -177,9 +177,10 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		class->top  = class->body.height;
 		
 		//regist callback
-		//glfwSetWindowSizeCallback(class->window,_glfw_callbacl_windowsizefun);
-		glfwSetWindowPosCallback(class->window,_glfw_callbacl_windowposfun)
-		glfwSetFramebufferSizeCallback(class->window,_glfw_callbacl_framebuffersizefun);
+		//glfwSetWindowSizeCallback(class->window,_glfw_callback_windowsizefun);
+		glfwSetWindowPosCallback(class->window,_glfw_callback_windowposfun);
+		glfwSetFramebufferSizeCallback(class->window,_glfw_callback_framebuffersizefun);
+		glfwSetCursorPosCallback(class->window,_glfw_callback_cursorposition);
 
 
 		//undo
@@ -378,11 +379,10 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height){
 		class->right = width;
 		class->top   = height;
 	}else{
+		calcGrobalPos(class);
 		class->body.callback(WINDOW_MESSAGE_RESHAPE,class,
 			(((uint64_t)width<<32))|(height&0xFFFFFFFF),0,class->body.userData);
 	}
-
-	calcGrobalPos(class);
 }
 
 void wtWindowLoop(WindowClass** itr){
@@ -468,7 +468,7 @@ void callChildrenDisplay(WindowClass* class){
 
 
 //Child window reshape
-void calcChildrenGlobalPos(WindowClass* class){
+static void calcChildrenGlobalPos(WindowClass* class){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(class->children,itr){
 		//calc scale
@@ -492,36 +492,36 @@ void calcChildrenGlobalPos(WindowClass* class){
 }
 
 
-void _glfw_callbacl_windowposfun(GLFWwindow *window, int xpos, int ypos){
+static void _glfw_callback_windowposfun(GLFWwindow *window, int xpos, int ypos){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
 		if(window == (*itr)->window){	
 			(*itr)->body.x = xpos;
 			(*itr)->body.y = ypos;
 
-			class->body.callback(WINDOW_MESSAGE_MOVE,class,
-				(((uint64_t)xpos<<32))|(ypos&0xFFFFFFFF),0,class->body.userData);
+			(*itr)->body.callback(WINDOW_MESSAGE_MOVE,*itr,
+				(((uint64_t)xpos<<32))|(ypos&0xFFFFFFFF),0,(*itr)->body.userData);
 			break;
 		}
 	}
 }
 
-void _glfw_callbacl_windowsizefun(GLFWwindow *window, int width, int height){
+static void _glfw_callback_windowsizefun(GLFWwindow *window, int width, int height){
 }
 
-void _glfw_callbacl_windowrefreshfun(GLFWwindow *window){
+static void _glfw_callback_windowrefreshfun(GLFWwindow *window){
 }
 
-void _glfw_callbacl_windowfocusfun(GLFWwindow *window, int focused){
+static void _glfw_callback_windowfocusfun(GLFWwindow *window, int focused){
 }
 
-void _glfw_callbacl_windowiconifyfun(GLFWwindow *window, int iconified){
+static void _glfw_callback_windowiconifyfun(GLFWwindow *window, int iconified){
 }
 
-void _glfw_callbacl_windowmaximizefun(GLFWwindow *window, int maximized){
+static void _glfw_callback_windowmaximizefun(GLFWwindow *window, int maximized){
 }
 
-void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height){
+static void _glfw_callback_framebuffersizefun(GLFWwindow *window, int width, int height){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(wtSystem->windowList,itr){
 		if(window == (*itr)->window){	
@@ -530,16 +530,25 @@ void _glfw_callbacl_framebuffersizefun(GLFWwindow *window, int width, int height
 			(*itr)->hscale = width  / (*itr)->body.width;
 			(*itr)->vscale = height / (*itr)->body.height;
 
+			(*itr)->right = (*itr)->body.width;
+			(*itr)->top   = (*itr)->body.height;
+
 			(*itr)->body.callback(WINDOW_MESSAGE_RESHAPE,*itr,
 					(((uint64_t)(*itr)->body.width<<32))|((*itr)->body.height&0xFFFFFFFF),
 					0,(*itr)->body.userData);
 			
+			calcGrobalPos((*itr));
+
 			break;
 		}
 	}
 }
 
-void _glfw_callbacl_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale){
+static void _glfw_callback_windowcontentscalefun(GLFWwindow *window, float xscale, float yscale){
+}
+
+static void _glfw_callback_cursorposition(GLFWwindow* window, double xpos, double ypos){
+	printf("%lf,%lf\n",xpos,ypos);
 }
 
 /*
@@ -694,17 +703,9 @@ void glTimer(int value){
 	timerList[value] = NULL;
 }*/
 
-void calcGrobalPos(WindowClass* class){
+static void calcGrobalPos(WindowClass* class){
 	
 	if(class->body.parent == NULL){
-		//calc scale
-		if(class->body.flag & 1)
-			class->hscale = class->vscale = 
-					1.0f / ((unsigned int)1<<((class->body.flag>>1)&0x03));
-		else
-			class->hscale = class->vscale =
-			   		(float)((unsigned int)1<<((class->body.flag>>1)&0x03));
-
 		calcChildrenGlobalPos(class);
 	}else{
 		calcChildrenGlobalPos(class->body.parent);
@@ -713,7 +714,7 @@ void calcGrobalPos(WindowClass* class){
 }
 
 
-WindowClass* getPointOwner(WindowClass* class,int x,int y){
+static WindowClass* getPointOwner(WindowClass* class,int x,int y){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(class->children,itr){
 
@@ -725,7 +726,7 @@ WindowClass* getPointOwner(WindowClass* class,int x,int y){
 	return class;
 }
 
-void wtDeleateWindowAll(WindowClass* class){
+static void wtDeleateWindowAll(WindowClass* class){
 	WindowClass** itr;
 	LINEAR_LIST_FOREACH(class->children,itr){
 		wtDeleateWindowAll(*itr);

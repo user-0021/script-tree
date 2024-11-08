@@ -43,7 +43,6 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 		}
 		case WINDOW_MESSAGE_RESHAPE:{
 			float progScale = data->progWidth / (float)data->width;
-
 			data->width  = (oprand1 >> 32)&0xFFFFFFFF;
 			data->height = (oprand1		)&0xFFFFFFFF;
 			
