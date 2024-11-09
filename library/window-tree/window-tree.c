@@ -173,7 +173,7 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 			glfwSetWindowPos(class->window,class->body.x,class->body.y);
 
 		//setColor
-		//glClearColor(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
+		glClearColor(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
 	
 		//sync window size
 		glfwGetWindowSize(class->window,&class->body.width,&class->body.height);
@@ -194,10 +194,8 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		glfwSetFramebufferSizeCallback(class->window,_glfw_callback_framebuffersizefun);
 		glfwSetCursorPosCallback(class->window,_glfw_callback_cursorposition);
 	
-		printf("a\n");
 		//vertex shader
 		unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		printf("a\n");
 		glShaderSource(vertexShader, 1,&_wtVertexShaderSource, NULL);
 		glCompileShader(vertexShader);
 
@@ -317,11 +315,6 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
     //dettach
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);	
-
-	
-	//glVertexPointer(2,GL_FLOAT,0,points);
-	//glEnableClientState(GL_VERTEX_ARRAY);
-	//glDrawElements(GL_TRIANGLE_STRIP,4,GL_UNSIGNED_BYTE,index);
 	
 	//deleate
     glDeleteVertexArrays(1, &VAO);
@@ -373,10 +366,6 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 		index[i] = i;
 	}
 	index[pieces+1] = 1;
-
-	//glVertexPointer(2,GL_FLOAT,0,points);
-	//glEnableClientState(GL_VERTEX_ARRAY);
-	//glDrawElements(GL_TRIANGLE_FAN,pieces+2,GL_UNSIGNED_INT,index);
 
 	free(points);
 	free(index);
