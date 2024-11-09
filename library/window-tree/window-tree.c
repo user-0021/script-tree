@@ -84,6 +84,7 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_MINOR);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
 	
 	//init list
 	class->windowList = LINEAR_LIST_CREATE(WindowClass*);
@@ -162,11 +163,15 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		GLFWwindow* befor = glfwGetCurrentContext();
 		glfwMakeContextCurrent(class->window);
 
+	// init glad
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        fprintf(stderr,"Failed to initialize GLAD\n");
+		exit(-1);
+    }	
 		//init pos
 		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
 			glfwSetWindowPos(class->window,class->body.x,class->body.y);
 
-		printf("a\n");
 		//setColor
 		//glClearColor(class->backColor.r,class->backColor.g,class->backColor.b,class->backColor.a);
 	
@@ -192,10 +197,10 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		printf("a\n");
 		//vertex shader
 		unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+		printf("a\n");
 		glShaderSource(vertexShader, 1,&_wtVertexShaderSource, NULL);
 		glCompileShader(vertexShader);
 
-		printf("a\n");
 
 		//check compile
 		int success;
@@ -303,7 +308,6 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(points),points, GL_STATIC_DRAW);
 
-	printf("A\n");
     //attach
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,0,0);
     glEnableVertexAttribArray(0);
