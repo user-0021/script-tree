@@ -3,7 +3,7 @@
 #include <FTGL/ftgl.h>
 
 #define GLFW_MAJOR 3
-#define GLFW_MINOR 2
+#define GLFW_MINOR 3
 
 #define BIT_SET(i) (1<<i)
 #define BIT_CLEAR(i) (~(0<<i))

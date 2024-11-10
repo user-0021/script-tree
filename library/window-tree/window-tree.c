@@ -244,6 +244,8 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		//attach
 		glUseProgram(class->shaderProgram);
 
+		//set interval
+		glfwSwapInterval(1);
 
 		//undo
 		glfwMakeContextCurrent(befor);
@@ -405,8 +407,8 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	float fx = (x / (float)(class->body.width>>1 )) * class->hscale;
 	float fy = (y / (float)(class->body.height>>1)) * class->vscale;
 
-	//glRasterPos2f(fx,fy);
-	//ftglRenderFont(font, str, FTGL_RENDER_ALL);
+	glRasterPos2f(fx,fy);
+	ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
 
 void wtWindowSetTopWindow(WINDOW_HANDLE handle){
