@@ -297,13 +297,13 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
 	unsigned char index[4] = {0,1,3,2};
 	
 	//generate vao & vbo
-	unsigned int VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+	unsigned int vbo, vao;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
 
     //bind vao & vbo
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(points),points, GL_STATIC_DRAW);
 
     //attach
@@ -317,14 +317,14 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
     glBindVertexArray(0);	
 	
 	//deleate
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
 }
 
 void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
-	return;
+	
 	if(parent){
 		if(class->left <= parent->left)
 			x += class->left - parent->left;
@@ -335,40 +335,57 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	x -= (class->body.width >>1);
 	y -= (class->body.height>>1);
 
-	float x1 = (x / (float)(class->body.width  >> 1)) * class->hscale;
-	float y1 = (y / (float)(class->body.height >> 1)) * class->vscale;
+	GLfloat x1 = (x / (GLfloat)(class->body.width  >> 1)) * class->hscale;
+	GLfloat y1 = (y / (GLfloat)(class->body.height >> 1)) * class->vscale;
 	
-	#if INT_MAX == 0x7FFFFFFF
-		float* points = malloc(((pieces + 1)<<1) * sizeof(float));
-		unsigned int* index = malloc((pieces + 2) <<2);
-	#elif INT_MAX == 0x7FFFFFFFFFFFFFFF
-		float* points = malloc(((pieces + 1)<<1) * sizeof(float));
-		unsigned int* index = malloc((pieces + 2) <<3);
-	#else
-		"ERR:This program only support 4byte int or 8byte int"
-	#endif
+	GLfloat* points = malloc(((pieces + 2)<<1) * sizeof(GLfloat));
 	
 	//center point
 	points[0] = x1;
 	points[1] = y1;
-	index[0] = 0;
+
+	radius <<= 1;
+	GLfloat rad = 0;
+	GLfloat hscaleRadius = (radius / (GLfloat)class->body.width ) * class->hscale;
+	GLfloat vscaleRadius = (radius / (GLfloat)class->body.height) * class->vscale;
 
 	int i;
-	float rad = 0;
-	float hscaleRadius = (radius / (float)class->body.width ) * class->hscale;
-	float vscaleRadius = (radius / (float)class->body.height) * class->vscale;
-	float deltaRad = (2*M_PI)/pieces;
+	GLfloat deltaRad = (2*M_PI)/pieces;
 	for(i = 1;i <= pieces;i++){
 		points[(i<<1)  ] = x1 + cos(rad)*hscaleRadius;
 		points[(i<<1)+1] = y1 + sin(rad)*vscaleRadius;
 
 		rad += deltaRad;
-		index[i] = i;
 	}
-	index[pieces+1] = 1;
+
+	points[((pieces+1)<<1)    ] = points[2];
+	points[((pieces+1)<<1) + 1] = points[3];
+	
+	//generate vao & vbo
+	unsigned int vbo, vao;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+
+    //bind vao & vbo
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER,sizeof(GLfloat) * ((pieces + 2)<<1) ,points, GL_STATIC_DRAW);
+
+    //attach
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,0,0);
+    glEnableVertexAttribArray(0);
+
+	glDrawArrays(GL_TRIANGLE_FAN,0,pieces + 2);
+
+    //dettach
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);	
+	
+	//deleate
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
 
 	free(points);
-	free(index);
 }
 
 void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
