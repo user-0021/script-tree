@@ -1,11 +1,9 @@
 #pragma once
 #include <window-tree.h>
-#include <FTGL/ftgl.h>
 #include <GL/gl.h>
 #include "defined.h"
 
 typedef struct{
-	FTGLfont* font;
 	float scale;
 	int width;
 	int height;
@@ -59,13 +57,13 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 		}
 		case WINDOW_MESSAGE_DISPLAY:{
 			//display back ground
-			DrawBackGround(handle,data);
+//			DrawBackGround(handle,data);
 			
 			//write scale
 			wtSetColor4f(handle,0,0,0,1.0);
 			char percent[5];
 			sprintf(percent,"%3.0f",data->scale*100);
-			wtDrawText(handle,0,0,percent,data->font);
+			wtDrawText(handle,0,0,percent);
 
 			break;
 		}

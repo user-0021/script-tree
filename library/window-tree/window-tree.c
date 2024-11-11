@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <linear_list.h>
 #include "shader.h"
+#include "font.h"
 
 #define CHAR_TO_F(c) ((float)(0xFF & (unsigned int)c))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
@@ -33,12 +34,14 @@ typedef struct _window_class{
 
 	Window body;
 	unsigned int shaderProgram;
+	unsigned int textShaderProgram;
 	struct _window_class** children;
 }WindowClass;
 
 
 typedef struct{
 	WindowClass** windowList;
+	FT_Library fontLibrary;
 }WindowSystemClass;
 
 //global
@@ -76,9 +79,14 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
 
 	//init library
     if (!glfwInit()) {
-        fprintf(stderr,"Failed to initialize GLFW\n");
+        fprintf(stderr,"%s:Failed to initialize GLFW\n",__func__);
 		exit(-1);
     }										
+
+	if (FT_Init_FreeType(&class->fontLibrary)){
+        fprintf(stderr,"%s:Failed to initialize Freetype\n",__func__);
+		exit(-1);
+	}
 
 	//seet version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
@@ -162,12 +170,24 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
     	}
 		GLFWwindow* befor = glfwGetCurrentContext();
 		glfwMakeContextCurrent(class->window);
+		
+		//init shader
+		if(!_wtInitShader()){
+		fprintf(stderr,"%s:Faild init shader\n",__func__);
+			exit(-1);
+		}
 
-	// init glad
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        fprintf(stderr,"Failed to initialize GLAD\n");
-		exit(-1);
-    }	
+		//generateShader
+		if(!_wtGenerateShader(&class->shaderProgram,_wtVertexShaderSource,_wtFragmentShaderSource)){
+			fprintf(stderr,"%s:Faild generate shader\n",__func__);
+			exit(-1);
+		}
+
+		if(!_wtGenerateShader(&class->textShaderProgram,_wtTextVertexShaderSource,_wtTextFragmentShaderSource)){
+			fprintf(stderr,"%s:Faild generate shader\n",__func__);
+			exit(-1);
+		}
+
 		//init pos
 		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
 			glfwSetWindowPos(class->window,class->body.x,class->body.y);
@@ -193,57 +213,12 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		glfwSetWindowPosCallback(class->window,_glfw_callback_windowposfun);
 		glfwSetFramebufferSizeCallback(class->window,_glfw_callback_framebuffersizefun);
 		glfwSetCursorPosCallback(class->window,_glfw_callback_cursorposition);
-	
-		//vertex shader
-		unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertexShader, 1,&_wtVertexShaderSource, NULL);
-		glCompileShader(vertexShader);
 
-
-		//check compile
-		int success;
-		char infoLog[512];
-		glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-		if (!success) {
-			glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-			fprintf(stderr,"%s:Faild compile vertex shader%s\n",__func__,infoLog);
-			exit(-1);
-		}
-
-		//fragment shader
-		unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragmentShader, 1,&_wtFragmentShaderSource, NULL);
-		glCompileShader(fragmentShader);
-
-		//check compile
-		glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-		if (!success) {
-			glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-			fprintf(stderr,"%s:Faild compile fragmend shader%s\n",__func__,infoLog);
-			exit(-1);
-		}
-
-		//link shader program
-		class->shaderProgram = glCreateProgram();
-		glAttachShader(class->shaderProgram, vertexShader);
-		glAttachShader(class->shaderProgram, fragmentShader);
-		glLinkProgram(class->shaderProgram);
-
-		//check link 
-		glGetProgramiv(class->shaderProgram, GL_LINK_STATUS, &success);
-		if (!success) {
-			glGetProgramInfoLog(class->shaderProgram, 512, NULL, infoLog);
-			fprintf(stderr,"%s:Faild compile fragmend shader%s\n",__func__,infoLog);
-			exit(-1);
-		}
-	
-		//delate shader
-		glDeleteShader(fragmentShader);
-		glDeleteShader(vertexShader);
-	
 		//attach
 		glUseProgram(class->shaderProgram);
 
+		//attach
+		wtLoadASCIIFont("./fonts/DM_Sans/static/DMSans-Regular.ttf");
 		//set interval
 		glfwSwapInterval(1);
 
@@ -390,9 +365,15 @@ void wtDrawCircle(WINDOW_HANDLE handle,int x,int y,int radius,int pieces){
 	free(points);
 }
 
-void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
+void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
+
+	glEnable(GL_BLEND);
+	wtSetColor4f(handle,1.0f,0.0f,0.0f,1.0f);
+	render_text("ASOBO", 0.0f, 0.0f, 1.0f);
+	glDisable(GL_BLEND);
+	return;
 
 	if(parent){
 		if(class->left <= parent->left)
@@ -408,7 +389,6 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str,FTGLfont* font){
 	float fy = (y / (float)(class->body.height>>1)) * class->vscale;
 
 	glRasterPos2f(fx,fy);
-	ftglRenderFont(font, str, FTGL_RENDER_ALL);
 }
 
 void wtWindowSetTopWindow(WINDOW_HANDLE handle){
@@ -544,6 +524,10 @@ void wtMainLoop(){
 void wtSetCursor(WINDOW_HANDLE handle,uint8_t mode){
 }
 
+void wtLoadASCIIFont(const char* const path){
+	_wtLoadASCII(wtSystem->fontLibrary,path);
+}
+
 //Child window display
 void callChildrenDisplay(WindowClass* class){
 	WindowClass** itr;
@@ -571,7 +555,6 @@ void callChildrenDisplay(WindowClass* class){
 		callChildrenDisplay(*itr);
 	}
 }
-
 
 //Child window reshape
 static void calcChildrenGlobalPos(WindowClass* class){

@@ -1,7 +1,7 @@
 #pragma once
 #include <window-tree.h>
-#include <FTGL/ftgl.h>
-#include <GL/gl.h>
+#include <stdlib.h>
+#include <string.h>
 #include "defined.h"
 
 typedef struct{

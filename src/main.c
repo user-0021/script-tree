@@ -4,9 +4,7 @@
 #include "node_viewer.h"
 #include "defined.h"
 
-#define FONT_PATH "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-
-FTGLfont * baseFont;
+#define ASCII_PATH "./fonts/DM_Sans/static/DMSans-Regular.ttf"
 
 int test(char opcode,WINDOW_HANDLE handle
 		,uint64_t oprand1,uint64_t oprand2,void* userData){
@@ -48,7 +46,6 @@ void aglDisplay(void){
 int main(int argc,char* argv[])
 {
 	wtInit(&argc,argv);
-	baseFont = ftglCreatePixmapFont(FONT_PATH);
 
 	Window main;
 	main.flag =  WINDOW_IGNORE_POSITION | WINDOW_IGNORE_SIZE;
@@ -57,11 +54,9 @@ int main(int argc,char* argv[])
 	main.parent = NULL;
 	main.callback = NodeView;
 	memset(main.userData,0,sizeof(nodeViewData));
-	((nodeViewData*)main.userData)->font = baseFont;
 	WINDOW_HANDLE handle = wtCreateWindow(&main,"script-tree");
 	main.userData = malloc(sizeof(nodeViewData));
 	memset(main.userData,0,sizeof(nodeViewData));
-	((nodeViewData*)main.userData)->font = baseFont;
 	WINDOW_HANDLE ahandle = wtCreateWindow(&main,"script-tree");
 	
 	wtMainLoop();
