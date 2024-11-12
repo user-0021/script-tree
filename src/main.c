@@ -4,7 +4,6 @@
 #include "node_viewer.h"
 #include "defined.h"
 
-#define ASCII_PATH "./fonts/DM_Sans/static/DMSans-Regular.ttf"
 
 int test(char opcode,WINDOW_HANDLE handle
 		,uint64_t oprand1,uint64_t oprand2,void* userData){

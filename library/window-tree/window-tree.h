@@ -55,4 +55,4 @@ void wtResizeWindow(WINDOW_HANDLE handle,int width,int height);
 void wtSetColor4f(WINDOW_HANDLE handle,float r,float g,float b,float a);
 void wtMainLoop();
 void wtSetCursor(WINDOW_HANDLE handle,uint8_t mode);
-void wtLoadASCIIFont(const char* const path);
+void wtLoadASCIIFont(WINDOW_HANDLE handle,const char* const path);

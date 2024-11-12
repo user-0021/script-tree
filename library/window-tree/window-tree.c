@@ -33,6 +33,7 @@ typedef struct _window_class{
 	struct _window_class* current;
 
 	Window body;
+	FT_Library fontLibrary;
 	unsigned int shaderProgram;
 	unsigned int textShaderProgram;
 	struct _window_class** children;
@@ -41,7 +42,6 @@ typedef struct _window_class{
 
 typedef struct{
 	WindowClass** windowList;
-	FT_Library fontLibrary;
 }WindowSystemClass;
 
 //global
@@ -82,11 +82,6 @@ WindowSystem wtInit(int* argcp,char** argv){//init env data
         fprintf(stderr,"%s:Failed to initialize GLFW\n",__func__);
 		exit(-1);
     }										
-
-	if (FT_Init_FreeType(&class->fontLibrary)){
-        fprintf(stderr,"%s:Failed to initialize Freetype\n",__func__);
-		exit(-1);
-	}
 
 	//seet version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLFW_MAJOR);
@@ -188,6 +183,15 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 			exit(-1);
 		}
 
+		//attach
+		glUseProgram(class->shaderProgram);
+
+		//init ft
+		if (FT_Init_FreeType(&class->fontLibrary)){
+			fprintf(stderr,"%s:Failed to initialize Freetype\n",__func__);
+			exit(-1);
+		}
+
 		//init pos
 		if(!(WINDOW_IGNORE_POSITION & class->body.flag))
 			glfwSetWindowPos(class->window,class->body.x,class->body.y);
@@ -214,11 +218,6 @@ WINDOW_HANDLE wtCreateWindow(Window* win,char* name){
 		glfwSetFramebufferSizeCallback(class->window,_glfw_callback_framebuffersizefun);
 		glfwSetCursorPosCallback(class->window,_glfw_callback_cursorposition);
 
-		//attach
-		glUseProgram(class->shaderProgram);
-
-		//attach
-		wtLoadASCIIFont("./fonts/DM_Sans/static/DMSans-Regular.ttf");
 		//set interval
 		glfwSwapInterval(1);
 
@@ -524,8 +523,10 @@ void wtMainLoop(){
 void wtSetCursor(WINDOW_HANDLE handle,uint8_t mode){
 }
 
-void wtLoadASCIIFont(const char* const path){
-	_wtLoadASCII(wtSystem->fontLibrary,path);
+void wtLoadASCIIFont(WINDOW_HANDLE handle,const char* const path){
+	WindowClass* class = handle;
+
+	_wtLoadASCII(class->fontLibrary,path);
 }
 
 //Child window display

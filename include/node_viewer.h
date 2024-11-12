@@ -3,6 +3,8 @@
 #include <GL/gl.h>
 #include "defined.h"
 
+#define ASCII_PATH "./fonts/DM_Sans/static/DMSans-Regular.ttf"
+
 typedef struct{
 	float scale;
 	int width;
@@ -26,6 +28,9 @@ int NodeView(char opcode,WINDOW_HANDLE handle
 	switch(opcode){
 		case WINDOW_MESSAGE_CREATE:{
 			data->scale = 1;
+
+			//load ascii
+			wtLoadASCIIFont(handle,ASCII_PATH);
 
 			Window prog = {};
 			prog.base_color = 0x6F6F6FFF;

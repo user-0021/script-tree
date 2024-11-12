@@ -1,15 +1,13 @@
 #pragma once
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include <string.h>
 
-typedef struct {
-	unsigned int textureID;
-	int sizeX, sizeY;		
-	int bearingX, bearingY;  
- 	unsigned int advance;
-} Character;
+static const uint8_t glyphSize = 48;
+static const uint8_t atlasXCount = 16;
+static const uint8_t atlasYCount = 8;
+static const uint8_t atlasCount = atlasXCount * atlasYCount;
 
-Character asciiCharacters[128];
 unsigned int asciiAtlas;
 
 int _wtLoadASCII(FT_Library ft,const char* const path) {
@@ -20,93 +18,79 @@ int _wtLoadASCII(FT_Library ft,const char* const path) {
 		printf("ERROR::FREETYPE: Failed to load font\n");
 		return 0;
 	}
+
 	//set pixel
-	FT_Set_Pixel_Sizes(face, 0, 48);
-	
+	FT_Set_Pixel_Sizes(face, 0, glyphSize);
+
+	//malloc buffer
+	uint8_t * buffer = malloc((glyphSize << 4) *( glyphSize << 3));
+	memset(buffer,0,(glyphSize << 4) *( glyphSize << 3));
+
+	uint8_t c;
+	for (c = 0; c < atlasCount; c++) {
+		if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+			fprintf(stderr,"%s: Failed to load Glyph\n",__func__);
+			continue;
+		}
+
+		uint8_t x,y;
+		x = c & 0xF;
+		y = (c >> 4) & 0x7;
+		unsigned int offset = (glyphSize - face->glyph->bitmap.width) >> 1;
+		offset += (x + (y << 4))*glyphSize;
+		unsigned char* charTexture = face->glyph->bitmap.buffer;
+
+		uint8_t i;
+		for(i = 0;i < glyphSize;i++){
+			memcpy(buffer + offset + (i << 4) * glyphSize,
+					charTexture,
+					face->glyph->bitmap.width);
+			charTexture += face->glyph->bitmap.width;
+		}
+	}
+
+	for (c = 'A'; c < 'B'; c++) {
+		uint8_t x,y;
+		x = c & 0xF;
+		y = (c >> 4) & 0x7;
+		unsigned int offset = (x + (y << 4))*glyphSize;
+
+		putchar('\n');
+		uint8_t i;
+		for(i = 0;i < glyphSize;i++){
+			unsigned char* text = buffer + offset + (i << 4)*glyphSize;
+			uint8_t j;
+			for(j = 0;j < glyphSize;j++){
+				if(text[j])
+					printf("AA");
+				else
+					putchar(' ');
+			}
+			putchar('\n');
+		}
+	}
+	putchar('\n');
+
 	//set aligment
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 	//genelate atlas map
 	glGenTextures(1, &asciiAtlas);
 	glBindTexture(GL_TEXTURE_2D, asciiAtlas);
-	glTexImage2D(
-	GL_TEXTURE_2D,
-		0,
-		GL_RED,
-		face->glyph->bitmap.width,
-		face->glyph->bitmap.rows,
-		0,
-		GL_RED,
-		GL_UNSIGNED_BYTE,
-		face->glyph->bitmap.buffer
-	);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_RED,glyphSize<<4,
+		glyphSize<<3,0,GL_RED,GL_UNSIGNED_BYTE,buffer);
 
-	uint8_t c;
-	for (c = 0; c < 128; c++) {
-		if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
-			fprintf(stderr,"%s: Failed to load Glyph\n",__func__);
-			continue;
-		}
+	//set 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		
-		printf("%d\n",face->glyph->bitmap.width);
+	//reset aligment
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		Character character = {
-			texture,
-			face->glyph->bitmap.width,
-			face->glyph->bitmap.rows,
-			face->glyph->bitmap_left,
-			face->glyph->bitmap_top,
-			face->glyph->advance.x
-		};
-		asciiCharacters[c] = character;
-	}
 	return 1;
 }
 void render_text(const char *text, float x, float y, float scale) {
-	for (const char* c = text; *c; c++) {
-		Character ch = asciiCharacters[*c];
-
-		float xpos = 0;
-		float ypos = 0;
-
-		float w = 0.1 * scale;
-		float h = 0.1 * scale;
-
-		// 四角形を描画するための頂点データ
-		float vertices[6][4] = {
-			{ 0,	0.5,   0.0f, 0.0f },
-			{ 0,   0,	   0.0f, 1.0f },
-			{ 0.5,0,	   1.0f, 1.0f },
-
-			{ 0,	0.5,   0.0f, 0.0f },
-			{ 0.5, 0,	   1.0f, 1.0f },
-			{ 0.5, 0.5,   1.0f, 0.0f }
-		};
-
-
-		unsigned int VAO, VBO;
-glGenVertexArrays(1, &VAO);
-glGenBuffers(1, &VBO);
-glBindVertexArray(VAO);
-glBindBuffer(GL_ARRAY_BUFFER, VBO);
-glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
-glEnableVertexAttribArray(0);
-glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-
-		// テクスチャをバインドしてテキストを描画
-		glBindTexture(GL_TEXTURE_2D, ch.textureID);
-		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-
-		// 次の文字の位置に移動
-		x += (ch.advance >> 6) * scale;  // ビットシフトでピクセル単位に変換
 	}
-glBindBuffer(GL_ARRAY_BUFFER, 0);
-glBindVertexArray(0);
-}
