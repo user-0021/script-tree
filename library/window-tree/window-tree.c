@@ -270,7 +270,6 @@ void wtDrawSquare(WINDOW_HANDLE handle,int x,int y,int width,int height){
 
 	//create data
 	GLfloat points[4][2] = {{x1,y1},{x2,y1},{x2,y2},{x1,y2}};
-	unsigned char index[4] = {0,1,3,2};
 	
 	//generate vao & vbo
 	unsigned int vbo, vao;
@@ -368,10 +367,11 @@ void wtDrawText(WINDOW_HANDLE handle,int x,int y,char* str){
 	WindowClass *class = handle;
 	WindowClass *parent = (WindowClass*)class->body.parent;
 
+	glUseProgram(class->textShaderProgram);
 	glEnable(GL_BLEND);
-	wtSetColor4f(handle,1.0f,0.0f,0.0f,1.0f);
-	render_text("ASOBO", 0.0f, 0.0f, 1.0f);
+	_wtDrawText("ASOBO",class->textShaderProgram, 0.0f, 0.0f, 1.0f);
 	glDisable(GL_BLEND);
+	glUseProgram(class->shaderProgram);
 	return;
 
 	if(parent){
