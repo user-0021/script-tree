@@ -1,63 +1,53 @@
 #include <stdio.h>
-#include <window-tree.h>
-#include "program_list.h"
-#include "node_viewer.h"
-#include "defined.h"
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
+#define NAME "programNodeSystem"
 
-int test(char opcode,WINDOW_HANDLE handle
-		,uint64_t oprand1,uint64_t oprand2,void* userData){
-	
-	switch(opcode){
-		case WINDOW_MESSAGE_CREATE:{
-			break;
-		}
-		case WINDOW_MESSAGE_RESHAPE:{
-			break;
-		}
-		case WINDOW_MESSAGE_DISPLAY:{
-			break;
-		}
-		case WINDOW_MESSAGE_KEYBOARD:{
-			break;
-		}
-		case WINDOW_MESSAGE_MOUSE:{
-			break;
-		}
-		case WINDOW_MESSAGE_MOTION:{
-			break;
-		}
-		case WINDOW_MESSAGE_PMOTION:{
-			break;
-		}
-		case WINDOW_MESSAGE_TIMER:{
-			break;
-		}
-		default:
-	}
+static const char fifo_in_path[] = "/tmp/"NAME"_in";
+static const char fifo_out_path[] = "/tmp/"NAME"_out";
 
-	return 0;
-}
-
-void aglDisplay(void){ 
-}
+void lunch(int* argc,char* argv[]);
 
 int main(int argc,char* argv[])
 {
-	wtInit(&argc,argv);
-
-	Window main;
-	main.flag =  WINDOW_IGNORE_POSITION | WINDOW_IGNORE_SIZE;
-	main.base_color = 0x2F2F2FFF;
-	main.userData = malloc(sizeof(nodeViewData));
-	main.parent = NULL;
-	main.callback = NodeView;
-	memset(main.userData,0,sizeof(nodeViewData));
-	WINDOW_HANDLE handle = wtCreateWindow(&main,"script-tree");
-	main.userData = malloc(sizeof(nodeViewData));
-	memset(main.userData,0,sizeof(nodeViewData));
-	WINDOW_HANDLE ahandle = wtCreateWindow(&main,"script-tree");
-	
-	wtMainLoop();
+	lunch(&argc,argv);
 	return 0;
+}
+
+void lunch(int* argc,char* argv[]){
+	int in,out;
+
+	//make fifo
+	if(mkfifo(fifo_in_path,0666)){
+		perror("open pipe in");
+	}
+	if(mkfifo(fifo_out_path,0666)){
+		perror("open pipe out");
+	}
+	
+	printf("A\n");
+	if((in=open(fifo_in_path,O_WRONLY | O_NONBLOCK))==-1){
+		perror("open");
+		exit(-1);
+	}
+
+	printf("A\n");
+	if((out=open(fifo_out_path,O_RDONLY | O_NONBLOCK))==-1){
+		perror("open");
+		exit(-1);
+	}
+
+	
+	while(getchar() != 'a'){
+	}
+
+	printf("B\n");
+	close(in);
+	printf("C\n");
+	close(out);
+	printf("D\n");
 }
