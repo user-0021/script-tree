@@ -1,53 +1,38 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <string.h>
+#include <script-tree.h>
 
-#define NAME "programNodeSystem"
+#define VERSION "0.0.0"
 
-static const char fifo_in_path[] = "/tmp/"NAME"_in";
-static const char fifo_out_path[] = "/tmp/"NAME"_out";
+extern void lunch(int* argc,char* argv[]);
 
-void lunch(int* argc,char* argv[]);
+static const Command commandList[] = {
+	{"lunch",lunch}
+};
 
 int main(int argc,char* argv[])
 {
-	lunch(&argc,argv);
+	//print version when no input 
+	if(argc < 2){
+		printf("%s:%s",argv[0],VERSION);
+		exit(0);
+	}
+	
+	//check comand input to call command function
+	int i;
+	int commandCount = sizeof(commandList)/sizeof(Command);
+	for(i = 0;i < commandCount;i++){
+		if(strcmp(argv[1],commandList[i].argName) == 0){
+			argc -= 2;
+			argv += 2;
+			commandList[i].func(&argc,argv);
+			exit(0);
+		}
+	}
+	
+	fprintf(stderr,"%s is invalid arg\n",argv[1]);
+
 	return 0;
 }
 
-void lunch(int* argc,char* argv[]){
-	int in,out;
-
-	//make fifo
-	if(mkfifo(fifo_in_path,0666)){
-		perror("open pipe in");
-	}
-	if(mkfifo(fifo_out_path,0666)){
-		perror("open pipe out");
-	}
-	
-	printf("A\n");
-	if((in=open(fifo_in_path,O_WRONLY | O_NONBLOCK))==-1){
-		perror("open");
-		exit(-1);
-	}
-
-	printf("A\n");
-	if((out=open(fifo_out_path,O_RDONLY | O_NONBLOCK))==-1){
-		perror("open");
-		exit(-1);
-	}
-
-	
-	while(getchar() != 'a'){
-	}
-
-	printf("B\n");
-	close(in);
-	printf("C\n");
-	close(out);
-	printf("D\n");
-}
