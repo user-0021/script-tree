@@ -16,6 +16,7 @@ typedef struct{
 //module
 static int parsArgment(char* str,int size,char* argv[]);
 static int popenRW(const char const * command,char* argv[],int* fd);
+static void fileRead(int fd,void* buffer,size_t size,int count);
 
 //command callback
 static void help(int* argc,char* argv[]);
@@ -42,7 +43,7 @@ void lunch(int* argc,char* argv[]){
 	printf("lunch success.\n");
 
 	//init nodeSystem
-	activeNodeList  = LINEAR_LIST_CREATE(nodeData);
+	activeNodeList  = LINEAR_LIST_CREATE(nodeData*);
 
 	//init terminal
 	char inputData[1024];
@@ -57,7 +58,7 @@ void lunch(int* argc,char* argv[]){
 		if(exit_flag)
 			break;
 
-		/*--------------nodeSystemBegin-------------*/a
+		/*--------------nodeSystemBegin-------------*/
 		nodeData** itr;
 		LINEAR_LIST_FOREACH(activeNodeList,itr){
 
@@ -176,6 +177,18 @@ static int popenRW(const char const * command,char* argv[],int* fd){
 	}
 }
 
+static void fileRead(int fd,void* buffer,size_t size,int count){
+	size_t bufferSize = size * count;
+	size_t readCount;
+	size_t readSize = 0;
+	
+	do{
+		readCount = read(fd,buffer,bufferSize);
+		if(readCount > 0)
+			readSize += readCount;
+	}while(readSize != bufferSize);
+}
+
 static void help(int* argc,char* argv[]){
 	printf("-------------------------Commands-------------------------\n"
 		   " help -- display this text\n"
@@ -211,10 +224,22 @@ static void run(int* argc,char* argv[]){
 		exit(0);
 	}
 
+	/*
+	 *		IN  COUNT    4byte
+	 *		OUT COUNT	 4byte
+	 *		IN/OUT COUNT 4byte
+	 *
+	 * 		-----------------N
+	 *		PipeName
+	 *		TYPE 1byte
+	 *		------------------
+	 */
 	//transmit setting data
+	uint32_t counts[3];
+	fileRead(data->fd[0],counts,sizeof(uint32_t),3);
 	
-	
-	
+	printf("%d,%d,%d\n",counts[0],counts[1],counts[2]);
+
 	LINEAR_LIST_PUSH(activeNodeList,data);
 }
 
