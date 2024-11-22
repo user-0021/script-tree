@@ -12,7 +12,7 @@ obj/linear_list.o: library/linear_list/linear_list.c
 	gcc -o obj/linear_list.o library/linear_list/linear_list.c -I include -I library/linear_list -c
 
 out: obj/main.o obj/lunch.o obj/linear_list.o
-	gcc -o out obj/main.o obj/lunch.o obj/linear_list.o
+	gcc -o out obj/main.o obj/lunch.o obj/linear_list.o -lreadline
 
 all: clean out
 

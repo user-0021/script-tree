@@ -1,6 +1,7 @@
 #pragma once
 
 typedef struct{
-	char* argName;
+	char* name;
 	void (*func)(int* argc,char* argv[]);
+	char* man;
 } Command;

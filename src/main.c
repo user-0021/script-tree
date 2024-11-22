@@ -8,7 +8,7 @@
 extern void lunch(int* argc,char* argv[]);
 
 static const Command commandList[] = {
-	{"lunch",lunch}
+	{"lunch",lunch,"lunch work space."}
 };
 
 int main(int argc,char* argv[])
@@ -23,7 +23,7 @@ int main(int argc,char* argv[])
 	int i;
 	int commandCount = sizeof(commandList)/sizeof(Command);
 	for(i = 0;i < commandCount;i++){
-		if(strcmp(argv[1],commandList[i].argName) == 0){
+		if(strcmp(argv[1],commandList[i].name) == 0){
 			argc -= 2;
 			argv += 2;
 			commandList[i].func(&argc,argv);

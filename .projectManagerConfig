@@ -1,9 +1,9 @@
 #Project info
 CC = gcc
-OBJ_FLAG = 
-CFLAG =
-SOURCE_DIR = src library/linear_list
-INCLUDE_DIR = include library/linear_list
+OBJ_FLAG =
+CFLAG = -lreadline
+SOURCE_DIR = src library/linear_list 
+INCLUDE_DIR = include library/linear_list 
 OBJ_DIR = obj
 
 

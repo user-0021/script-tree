@@ -1,13 +1,16 @@
+#include <lunch.h>
+#include <linear_list.h>
+#include <script-tree.h>
+
+#include <time.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <script-tree.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <time.h>
-#include <linear_list.h>
-#include <lunch.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 //module
 static int parsArgment(char* str,int size,char* argv[]);
@@ -17,6 +20,10 @@ static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,
 static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t sec);
 static int receiveNodeProperties(int fd,nodeData* node);
 
+//readline function
+char *command_generator(char* str,int state);
+char **nodeSystem_completion(const char* str,int start,int end);
+
 //command callback
 static void help(int* argc,char* argv[]);
 static void quit(int* argc,char* argv[]);
@@ -24,14 +31,16 @@ static void save(int* argc,char* argv[]);
 static void load(int* argc,char* argv[]);
 static void run(int* argc,char* argv[]);
 static void connect(int* argc,char* argv[]);
+static void clear(int* argc,char* argv[]);
 
 static const Command commandList[] = {
-	{"help",help},
-	{"quit",quit},
-	{"save",save},
-	{"load",load},
-	{"run",run},
-	{"connect",connect}
+	{"help",help,"help -- display this text"},
+	{"quit",quit,"quit -- quit work space"},
+	{"save",save,"save [-f savePath] -- save node relation to savePath"},
+	{"load",load,"load [-f loadPath] -- load node relation from loadPath"},
+	{"run" ,run ,"run [-f programPath] -- run programPath as node"},
+	{"connect",connect,"connect [NodeName.PortName ...] -- connect ports"},
+	{"clear",clear,"clear -- clear display"}
 };
 
 static nodeData** activeNodeList = NULL;
@@ -46,12 +55,11 @@ void lunch(int* argc,char* argv[]){
 	activeNodeList  = LINEAR_LIST_CREATE(nodeData*);
 
 	//init terminal
-	char inputData[1024];
-	uint32_t inputDataSize = sizeof(inputDataSize);
 	char* args[5];
+	rl_readline_name = "NodeSystem";
+	rl_attempted_completion_function = nodeSystem_completion;
 	int oldInFlag = fcntl(STDIN_FILENO,F_GETFL);
 	fcntl(STDIN_FILENO,F_SETFL,oldInFlag|O_NONBLOCK);
-	putchar('>');
 
 	//loop
 	while(1){
@@ -68,9 +76,9 @@ void lunch(int* argc,char* argv[]){
 
 		/*---------------terminalBegin--------------*/
 		//get input
-		if(fgets(inputData,sizeof(inputData),stdin) != NULL){
-			inputData[strlen(inputData) - 1] = '\0';//replase \n to \0
-			int count = parsArgment(inputData,sizeof(args)/sizeof(char*),args);
+		char* inputLine = readline(">>>");
+		if(inputLine != NULL && inputLine[0] != '\0'){
+			int count = parsArgment(inputLine,sizeof(args)/sizeof(char*),args);
 			
 			//continue when no input
 			if(!count)
@@ -80,7 +88,7 @@ void lunch(int* argc,char* argv[]){
 			int i;
 			int commandCount = sizeof(commandList)/sizeof(Command);
 			for(i = 0;i < commandCount;i++){
-				if(strcmp(args[0],commandList[i].argName) == 0){
+				if(strcmp(args[0],commandList[i].name) == 0){
 					commandList[i].func(&count,args);
 					break;
 				}
@@ -89,9 +97,9 @@ void lunch(int* argc,char* argv[]){
 			if(i == commandCount)
 				printf("%s is invalide token\n",args[0]);
 
-			//terminal head
-			putchar('>');
 		}
+		if(inputLine)
+			free(inputLine);
 		/*----------------terminalEnd---------------*/
 	}
 
@@ -251,28 +259,22 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	uint16_t i;
 	for(i = 0;i < node->pipeCount;i++){
 		//type
-		if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint8_t),1,10) != sizeof(uint8_t)){
+		if(fileReadWithTimeOut(fd,&node->pipes[i].type,sizeof(uint8_t),1,10) != sizeof(uint8_t)){
 			fprintf(stderr,"Pipe type receive sequrnce time out\n");
 			return -1;
 		}	
-		int a = ((uint8_t*)recvBuffer)[0];
-		fprintf(stdout,"Pipe type : %d\n",a);
 
 		//unit
-		if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint8_t),1,10) != sizeof(uint8_t)){
+		if(fileReadWithTimeOut(fd,&node->pipes[i].unit,sizeof(uint8_t),1,10) != sizeof(uint8_t)){
 			fprintf(stderr,"Pipe unit receive sequrnce time out\n");
 			return -1;
 		}	
-		int b = ((uint8_t*)recvBuffer)[0];
-		fprintf(stdout,"Pipe unit : %d\n",b);
 		
 		//length
-		if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint16_t),1,10) != sizeof(uint16_t)){
+		if(fileReadWithTimeOut(fd,&node->pipes[i].length,sizeof(uint16_t),1,10) != sizeof(uint16_t)){
 			fprintf(stderr,"Unit length receive sequrnce time out\n");
 			return -1;
 		}	
-		int c = ((uint16_t*)recvBuffer)[0];
-		fprintf(stdout,"Unit length : %d\n",c);
 		
 		//name
 		uint32_t len = fileReadStrWithTimeOut(fd,recvBuffer,sizeof(recvBuffer),10);
@@ -280,7 +282,20 @@ static int receiveNodeProperties(int fd,nodeData* node){
 			fprintf(stderr,"Unit length receive sequrnce time out\n");
 			return -1;
 		}
-		fprintf(stdout,"Piep name : %s\n",recvBuffer);
+		node->pipes[i].pipeName = malloc(len);
+		strcpy(node->pipes[i].pipeName,recvBuffer);
+	
+		fprintf(stdout,	
+				"--------------------------------------\n"
+				"PipeName: %s\n"
+				"PipeType: %s\n"
+				"PipeUnit: %s\n"
+				"ArraySize: %d\n"
+				"--------------------------------------\n",
+				node->pipes[i].pipeName,
+				NODE_PIPE_TYPE_STR[node->pipes[i].type],
+				NODE_DATA_UNIT_STR[node->pipes[i].unit],
+				node->pipes[i].length);
 	}
 
 	//recive eof
@@ -292,17 +307,46 @@ static int receiveNodeProperties(int fd,nodeData* node){
 		return -2;
 	}
 	fprintf(stdout,"Header EOF succsee\n");
+	return 0;
 }
 
+//readline func
+char *command_generator(char* str,int status){
+	static int list_index, len;
+	char *name;
+
+	if(!state){
+		list_index = 0;
+		len = strlen (str);
+	}
+
+	while(name = commandList[list_index].name)
+	{
+		list_index++;
+
+		if (strncmp (name, str, len) == 0)
+			return (dupstr(name));
+	}
+
+	return ((char *)NULL);
+}
+
+char **nodeSystem_completion(const char* str,int start,int end){
+	if(!start)
+		return rl_completion_matches(str,command_generator);
+
+	return NULL;
+}
+
+//command callback
 static void help(int* argc,char* argv[]){
-	printf("-------------------------Commands-------------------------\n"
-		   " help -- display this text\n"
-		   " quit -- quit program\n"
-		   " save [-f savePath] -- save node relation to savePath\n"
-		   " load [-f loadPath] -- load node relation from loadPath\n"
-		   " run [-f programPath] -- run programPath as node\n"
-		   " connect [NodeName.PortName ...] -- connect ports\n"
-		   "----------------------------------------------------------\n");
+	fprintf(stdout,"-------------------------Commands-------------------------\n");
+	int i;
+	int commandCount = sizeof(commandList)/sizeof(Command);
+	for(i = 0;i < commandCount;i++){
+		fprintf(stdout," %s\n",commandList[i].man);
+	}
+	fprintf(stdout,"----------------------------------------------------------\n");
 }
 
 static void quit(int* argc,char* argv[]){
@@ -330,11 +374,13 @@ static void run(int* argc,char* argv[]){
 	}
 	
 	//load properties
-	receiveNodeProperties(data->fd[0],data);
-
-	LINEAR_LIST_PUSH(activeNodeList,data);
+	if(!receiveNodeProperties(data->fd[0],data))
+		LINEAR_LIST_PUSH(activeNodeList,data);
 }
 
 static void connect(int* argc,char* argv[]){
 }
 
+static void clear(int* argc,char* argv[]){
+	system("clear");
+}

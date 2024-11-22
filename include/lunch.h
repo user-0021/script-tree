@@ -7,6 +7,12 @@ typedef enum{
 	NODE_IN_OUT	= 2
 } NODE_PIPE_TYPE;
 
+static const char* NODE_PIPE_TYPE_STR[3] = {
+	"IN",
+	"OUT",
+	"IN/OUT"
+};
+
 typedef enum{
 	NODE_STR		= 0,
 	NODE_CHAR		= 1,
@@ -22,6 +28,22 @@ typedef enum{
 	NODE_FLOAT		= 11,
 	NODE_DOUBLE		= 12,
 } NODE_DATA_UNIT;
+
+static const char* NODE_DATA_UNIT_STR[13] = {
+	"STR",
+	"CHAR",
+	"BOOL",
+	"INT_8",
+	"INT_16",
+	"INT_24",
+	"INT_32",
+	"UINT_8",
+	"UINT_16",
+	"UINT_24",
+	"UINT_32",
+	"FLOAT",
+	"DOUBLE"
+};
 
 typedef struct{
 	char* pipeName;
