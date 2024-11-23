@@ -21,7 +21,7 @@ static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t sec);
 static int receiveNodeProperties(int fd,nodeData* node);
 
 //readline function
-char *command_generator(char* str,int state);
+char *command_generator(const char* str,int state);
 char **nodeSystem_completion(const char* str,int start,int end);
 
 //command callback
@@ -78,11 +78,10 @@ void lunch(int* argc,char* argv[]){
 		//get input
 		char* inputLine = readline(">>>");
 		if(inputLine != NULL && inputLine[0] != '\0'){
+			//add history
+			add_history(inputLine);
+
 			int count = parsArgment(inputLine,sizeof(args)/sizeof(char*),args);
-			
-			//continue when no input
-			if(!count)
-				continue;
 
 			//check comand input to call command function
 			int i;
@@ -96,7 +95,6 @@ void lunch(int* argc,char* argv[]){
 		
 			if(i == commandCount)
 				printf("%s is invalide token\n",args[0]);
-
 		}
 		if(inputLine)
 			free(inputLine);
@@ -311,21 +309,28 @@ static int receiveNodeProperties(int fd,nodeData* node){
 }
 
 //readline func
-char *command_generator(char* str,int status){
+char *command_generator(const char* str,int status){
 	static int list_index, len;
-	char *name;
 
-	if(!state){
+	if(!status){
 		list_index = 0;
 		len = strlen (str);
 	}
 
-	while(name = commandList[list_index].name)
-	{
+	char* name;
+	int commandCount = (sizeof(commandList)/sizeof(Command));
+	while(list_index < commandCount){
+		name = commandList[list_index].name;
 		list_index++;
 
-		if (strncmp (name, str, len) == 0)
-			return (dupstr(name));
+		if (strncmp(name, str, len) == 0){
+			char* cpStr = malloc(strlen(name)+1);
+
+			if(cpStr){
+				strcpy(cpStr,name);
+				return cpStr;
+			}
+		}
 	}
 
 	return ((char *)NULL);
