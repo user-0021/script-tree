@@ -19,6 +19,7 @@ static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count);
 static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,uint32_t sec);
 static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t sec);
 static int receiveNodeProperties(int fd,nodeData* node);
+static int nodeBegine(nodeData* node);
 
 //readline function
 char *command_generator(const char* str,int state);
@@ -45,8 +46,10 @@ static const Command commandList[] = {
 
 static nodeData** activeNodeList = NULL;
 static uint8_t exit_flag = 0;
-static const uint32_t _node_head = 0x83DFC690;
-static const uint32_t _node_eof  = 0x85CBADEF;
+static const uint32_t _node_init_head = 0x83DFC690;
+static const uint32_t _node_init_eof  = 0x85CBADEF;
+static const uint32_t _node_begin_head = 0x9067F3A2;
+static const uint32_t _node_begin_eof  = 0x910AC8BB;
 
 void lunch(int* argc,char* argv[]){
 	printf("lunch success.\n");
@@ -69,7 +72,7 @@ void lunch(int* argc,char* argv[]){
 		/*--------------nodeSystemBegin-------------*/
 		nodeData** itr;
 		LINEAR_LIST_FOREACH(activeNodeList,itr){
-
+			nodeBegine(*itr);
 		}
 		/*---------------nodeSystemEnd--------------*/
 		
@@ -188,6 +191,9 @@ static int popenRWasNonBlock(const char const * command,char* argv[],int* fd){
 	}
 }
 
+static int nodeBegine(nodeData* node){
+}
+
 static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count){
 	uint64_t bufferSize = size * count;
 	int64_t readCount;
@@ -234,10 +240,10 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	char recvBuffer[1024];
 	
 	//recive header
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_head),1,10) != sizeof(_node_head)){
+	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_head),1,10) != sizeof(_node_init_head)){
 		fprintf(stderr,"Header receive sequrnce time out\n");
 		return -1;
-	}else if(((uint32_t*)recvBuffer)[0] != _node_head){
+	}else if(((uint32_t*)recvBuffer)[0] != _node_init_head){
 		fprintf(stderr,"received header is invalid\n");
 		return -2;
 	}
@@ -297,10 +303,10 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	}
 
 	//recive eof
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_eof),1,10) != sizeof(_node_eof)){
+	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_eof),1,10) != sizeof(_node_init_eof)){
 		fprintf(stderr,"EOF receive sequrnce time out\n");
 		return -1;
-	}else if(((uint32_t*)recvBuffer)[0] != _node_eof){
+	}else if(((uint32_t*)recvBuffer)[0] != _node_init_eof){
 		fprintf(stderr,"received EOF is invalid\n");
 		return -2;
 	}
