@@ -208,7 +208,23 @@ static int popenRWasNonBlock(const char const * command,char* argv[],int* fd){
 
 static int nodeBegin(nodeData* node){
 	uint32_t header_buffer;
-	//fileReadWithTimeOut()
+	
+	int count = fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1);
+
+	if(!count)
+		return 0;
+
+	if(count < sizeof(uint32_t)){
+		int count = fileReadWithTimeOut(node->fd[0],
+				((char*)&header_buffer)+count,sizeof(uint32_t)-count,1,1000);
+	}
+
+	if(count != sizeof(uint32_t)){
+		fprintf(stderr,"[%s]failed recive header\n",node->name);
+		return -1;
+	}
+
+	return 1;
 }
 
 static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count){
@@ -268,7 +284,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	char recvBuffer[1024];
 	
 	//recive header
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_head),1,10000) != sizeof(_node_init_head)){
+	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_head),1,1000) != sizeof(_node_init_head)){
 		fprintf(stderr,"Header receive sequrnce time out\n");
 		return -1;
 	}else if(((uint32_t*)recvBuffer)[0] != _node_init_head){
@@ -278,7 +294,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	fprintf(stdout,"Header receive succsee\n");
 
 	//recive pipe count
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint16_t),1,10000) != sizeof(uint16_t)){
+	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
 		fprintf(stderr,"Pipe count receive sequrnce time out\n");
 		return -1;
 	}	
@@ -291,25 +307,25 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	uint16_t i;
 	for(i = 0;i < node->pipeCount;i++){
 		//type
-		if(fileReadWithTimeOut(fd,&node->pipes[i].type,sizeof(uint8_t),1,10000) != sizeof(uint8_t)){
+		if(fileReadWithTimeOut(fd,&node->pipes[i].type,sizeof(uint8_t),1,1000) != sizeof(uint8_t)){
 			fprintf(stderr,"Pipe type receive sequrnce time out\n");
 			return -1;
 		}	
 
 		//unit
-		if(fileReadWithTimeOut(fd,&node->pipes[i].unit,sizeof(uint8_t),1,10000) != sizeof(uint8_t)){
+		if(fileReadWithTimeOut(fd,&node->pipes[i].unit,sizeof(uint8_t),1,1000) != sizeof(uint8_t)){
 			fprintf(stderr,"Pipe unit receive sequrnce time out\n");
 			return -1;
 		}	
 		
 		//length
-		if(fileReadWithTimeOut(fd,&node->pipes[i].length,sizeof(uint16_t),1,10000) != sizeof(uint16_t)){
+		if(fileReadWithTimeOut(fd,&node->pipes[i].length,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
 			fprintf(stderr,"Unit length receive sequrnce time out\n");
 			return -1;
 		}	
 		
 		//name
-		uint32_t len = fileReadStrWithTimeOut(fd,recvBuffer,sizeof(recvBuffer),10000);
+		uint32_t len = fileReadStrWithTimeOut(fd,recvBuffer,sizeof(recvBuffer),1000);
 		if(len == 0 || recvBuffer[len - 1] != '\0'){
 			fprintf(stderr,"Unit length receive sequrnce time out\n");
 			return -1;
@@ -331,7 +347,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	}
 
 	//recive eof
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_eof),1,10000) != sizeof(_node_init_eof)){
+	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_eof),1,1000) != sizeof(_node_init_eof)){
 		fprintf(stderr,"EOF receive sequrnce time out\n");
 		return -1;
 	}else if(((uint32_t*)recvBuffer)[0] != _node_init_eof){
