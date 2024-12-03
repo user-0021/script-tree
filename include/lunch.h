@@ -53,6 +53,7 @@ typedef struct{
 }nodePipe;
 
 typedef struct{
+	int pid;
 	int fd[3];
 	char* name;
 	uint16_t pipeCount;

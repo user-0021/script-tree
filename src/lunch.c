@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <signal.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -26,22 +27,22 @@ char *command_generator(const char* str,int state);
 char **nodeSystem_completion(const char* str,int start,int end);
 
 //command callback
-static void help(int* argc,char* argv[]);
-static void quit(int* argc,char* argv[]);
-static void save(int* argc,char* argv[]);
-static void load(int* argc,char* argv[]);
-static void run(int* argc,char* argv[]);
-static void connect(int* argc,char* argv[]);
-static void clear(int* argc,char* argv[]);
+static void s_help(int* argc,char* argv[]);
+static void s_quit(int* argc,char* argv[]);
+static void s_save(int* argc,char* argv[]);
+static void s_load(int* argc,char* argv[]);
+static void s_run(int* argc,char* argv[]);
+static void s_connect(int* argc,char* argv[]);
+static void s_clear(int* argc,char* argv[]);
 
 static const Command commandList[] = {
-	{"help",help,"help -- display this text"},
-	{"quit",quit,"quit -- quit work space"},
-	{"save",save,"save [-f savePath] -- save node relation to savePath"},
-	{"load",load,"load [-f loadPath] -- load node relation from loadPath"},
-	{"run" ,run ,"run [-f programPath] -- run programPath as node"},
-	{"connect",connect,"connect [NodeName.PortName ...] -- connect ports"},
-	{"clear",clear,"clear -- clear display"}
+	{"help",s_help,"help -- display this text"},
+	{"quit",s_quit,"quit -- quit work space"},
+	{"save",s_save,"save [-f savePath] -- save node relation to savePath"},
+	{"load",s_load,"load [-f loadPath] -- load node relation from loadPath"},
+	{"run" ,s_run ,"run [-f programPath] -- run programPath as node"},
+	{"connect",s_connect,"connect [NodeName.PortName ...] -- connect ports"},
+	{"clear",s_clear,"clear -- clear display"}
 };
 
 static nodeData** activeNodeList = NULL;
@@ -83,7 +84,21 @@ void lunch(int* argc,char* argv[]){
 		/*--------------nodeSystemBegin-------------*/
 		nodeData** itr;
 		LINEAR_LIST_FOREACH(inactiveNodeList,itr){
-			nodeBegin(*itr);
+			int res = nodeBegin(*itr);
+			if(res){
+				if(res < 0){
+					kill((*itr)->pid,SIGTERM);	
+					LINEAR_LIST_ERASE(itr);
+					break;
+				}
+				else{
+					nodeData* data = *itr;
+					LINEAR_LIST_ERASE(itr);
+					LINEAR_LIST_PUSH(activeNodeList,data);
+					break;
+				}
+					
+			}
 		}
 
 		LINEAR_LIST_FOREACH(activeNodeList,itr){
@@ -116,6 +131,7 @@ void lunch(int* argc,char* argv[]){
 		}
 		if(inputLine)
 			free(inputLine);
+		
 		/*----------------terminalEnd---------------*/
 	}
 
@@ -220,9 +236,12 @@ static int nodeBegin(nodeData* node){
 	}
 
 	if(count != sizeof(uint32_t)){
-		fprintf(stderr,"[%s]failed recive header\n",node->name);
+		int cursol = rl_point + 3;
+		fprintf(stderr,"\e[1E[%s]failed recive header\e[1A\e[%dC\n",node->name,cursol);
 		return -1;
 	}
+
+	
 
 	return 1;
 }
@@ -394,7 +413,7 @@ char **nodeSystem_completion(const char* str,int start,int end){
 }
 
 //command callback
-static void help(int* argc,char* argv[]){
+static void s_help(int* argc,char* argv[]){
 	fprintf(stdout,"-------------------------Commands-------------------------\n");
 	int i;
 	int commandCount = sizeof(commandList)/sizeof(Command);
@@ -404,17 +423,17 @@ static void help(int* argc,char* argv[]){
 	fprintf(stdout,"----------------------------------------------------------\n");
 }
 
-static void quit(int* argc,char* argv[]){
+static void s_quit(int* argc,char* argv[]){
 	exit_flag = 1;
 }
 
-static void save(int* argc,char* argv[]){
+static void s_save(int* argc,char* argv[]){
 }
 
-static void load(int* argc,char* argv[]){
+static void s_load(int* argc,char* argv[]){
 }
 
-static void run(int* argc,char* argv[]){
+static void s_run(int* argc,char* argv[]){
 	//init struct
 	nodeData* data = malloc(sizeof(nodeData));
 	memset(data,0,sizeof(nodeData));
@@ -422,20 +441,24 @@ static void run(int* argc,char* argv[]){
 	strcpy(data->name,argv[1]);
 
 	//execute program
-	int pid = popenRWasNonBlock(argv[1],&argv[1],data->fd);
-	if(pid < 0){
+	data->pid = popenRWasNonBlock(argv[1],&argv[1],data->fd);
+	if(data->pid < 0){
 		perror(__func__);
 		exit(0);
 	}
 	
+		int cursol = rl_point + 3;
+		fprintf(stderr,"\e[1E[%s]failed recive header\n\e[2A\e[%dC",data->name,cursol);
 	//load properties
 	if(!receiveNodeProperties(data->fd[0],data))
 		LINEAR_LIST_PUSH(activeNodeList,data);
+	else
+		kill(data->pid,SIGTERM);	
 }
 
-static void connect(int* argc,char* argv[]){
+static void s_connect(int* argc,char* argv[]){
 }
 
-static void clear(int* argc,char* argv[]){
+static void s_clear(int* argc,char* argv[]){
 	system("clear");
 }

@@ -12,6 +12,7 @@ void* do_not_use_list_get_last(void* list,unsigned int size);
 void* do_not_use_list_create(unsigned int size,void* next,void* pre);
 void do_not_use_list_release(void* list,unsigned int size);
 void do_not_use_list_push(void* list,const void* const data,unsigned int size);
+void do_not_use_list_deleate(void* itr,unsigned int size);
 
 #define LINEAR_LIST_NEXT(list) ((typeof(list))(*(void**)((void*)list + sizeof(typeof(*list)))))
 #define LINEAR_LIST_PREV(list) ((typeof(list))(*(void**)((void*)list +sizeof(typeof(*list))+sizeof(void*))))
@@ -19,6 +20,7 @@ void do_not_use_list_push(void* list,const void* const data,unsigned int size);
 #define LINEAR_LIST_CREATE(type) ((type*)do_not_use_list_create(sizeof(type),(void*)0,(void*)0))
 #define LINEAR_LIST_RELEASE(list) do_not_use_list_release(list,sizeof(typeof(*list)))
 #define LINEAR_LIST_PUSH(list,data) do_not_use_list_push(list,&data,sizeof(typeof(*list)))
+#define LINEAR_LIST_ERASE(itr) do_not_use_list_deleate(itr,sizeof(typeof(*itr)));
 
 #define LINEAR_LIST_LAST(list) ((typeof(list))do_not_use_list_get_last(list,sizeof(typeof(*list))))
 #define LINEAR_LIST_FOREACH(list,iter) for(iter = *(void**)(((void*)list) + sizeof(*list));iter != NULL;iter = LINEAR_LIST_NEXT(iter))
