@@ -1,6 +1,7 @@
 #include <lunch.h>
 #include <linear_list.h>
 #include <script-tree.h>
+#include <terminal_splitter.h>
 
 #include <time.h>
 #include <fcntl.h>
@@ -132,6 +133,8 @@ void lunch(int* argc,char* argv[]){
 		if(inputLine)
 			free(inputLine);
 		
+		ts_loop();
+
 		/*----------------terminalEnd---------------*/
 	}
 
@@ -237,7 +240,7 @@ static int nodeBegin(nodeData* node){
 
 	if(count != sizeof(uint32_t)){
 		int cursol = rl_point + 3;
-		fprintf(stderr,"\e[1E[%s]failed recive header\e[1A\e[%dC\n",node->name,cursol);
+		fprintf(stderr,"[%s]failed recive header\n",node->name);
 		return -1;
 	}
 
@@ -447,8 +450,6 @@ static void s_run(int* argc,char* argv[]){
 		exit(0);
 	}
 	
-		int cursol = rl_point + 3;
-		fprintf(stderr,"\e[1E[%s]failed recive header\n\e[2A\e[%dC",data->name,cursol);
 	//load properties
 	if(!receiveNodeProperties(data->fd[0],data))
 		LINEAR_LIST_PUSH(activeNodeList,data);
