@@ -1,7 +1,6 @@
 #include <lunch.h>
 #include <linear_list.h>
 #include <script-tree.h>
-#include <terminal_splitter.h>
 
 #include <time.h>
 #include <fcntl.h>
@@ -48,7 +47,6 @@ static const Command commandList[] = {
 };
 
 static nodeData** activeNodeList = NULL;
-static nodeData** inactiveNodeList = NULL;
 static uint8_t no_log = 0;
 static uint8_t exit_flag = 0;
 static const uint32_t _node_init_head = 0x83DFC690;
@@ -69,7 +67,6 @@ void lunch(int* argc,char* argv[]){
 
 	//init nodeSystem
 	activeNodeList  = LINEAR_LIST_CREATE(nodeData*);
-	inactiveNodeList  = LINEAR_LIST_CREATE(nodeData*);
 
 	//init terminal
 	rl_readline_name = "NodeSystem";
@@ -84,30 +81,6 @@ void lunch(int* argc,char* argv[]){
 			break;
 
 		/*--------------nodeSystemBegin-------------*/
-		nodeData** itr;
-		LINEAR_LIST_FOREACH(inactiveNodeList,itr){
-			int res = nodeBegin(*itr);
-			if(res){
-				printf("B\n");
-				if(res < 0){
-					kill((*itr)->pid,SIGTERM);	
-					LINEAR_LIST_ERASE(itr);
-					break;
-				}
-				else{
-					nodeData* data = *itr;
-					LINEAR_LIST_ERASE(itr);
-					LINEAR_LIST_PUSH(activeNodeList,data);
-					break;
-				}
-			}else
-				printf("A\n");
-		}
-
-				printf("A\n");
-		LINEAR_LIST_FOREACH(activeNodeList,itr){
-			
-		}
 		/*---------------nodeSystemEnd--------------*/
 		
 
@@ -209,18 +182,8 @@ static int popenRWasNonBlock(const char const * command,char* argv[],int* fd){
 static int nodeBegin(nodeData* node){
 	uint32_t header_buffer;
 	
-	int count = fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1);
-
-	if(!count)
-		return 0;
-
-	if(count < sizeof(uint32_t)){
-		int count = fileReadWithTimeOut(node->fd[0],
-				((char*)&header_buffer)+count,sizeof(uint32_t)-count,1,1000);
-	}
-
-	if((count != sizeof(uint32_t)) || header_buffer != _node_begin_head){
-		fprintf(stderr,"\n[%s]failed recive header\n>>>%s",node->name,rl_line_buffer);
+	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,10000) != sizeof(uint32_t)) || header_buffer != _node_begin_head){
+		fprintf(stderr,"[%s]failed recive header\n",node->name);
 		return -1;
 	}
 
@@ -263,20 +226,18 @@ static int nodeBegin(nodeData* node){
 			}
 		}
 		if (f == 1){
-			fprintf(stdout,"\n");
 			perror(node->name);
-			fprintf(stdout,">>>%s",rl_line_buffer);
 			return -1;
 		}
 	}
 
 	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1000) != sizeof(uint32_t)) || header_buffer != _node_begin_eof){
-		fprintf(stderr,"\n[%s]failed recive eof\n>>>%s",node->name,rl_line_buffer);
+		fprintf(stderr,"[%s]failed recive eof\n",node->name);
 		return -1;
 	}
 
-	fprintf(stderr,"\n[%s]node is activate\n>>>%s",node->name,rl_line_buffer);
-	return 1;
+	fprintf(stderr,"[%s]node is activate\n",node->name);
+	return 0;
 }
 
 static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count){
@@ -513,10 +474,12 @@ static void s_run(int* argc,char* argv[]){
 	}
 	
 	//load properties
-	if(!receiveNodeProperties(data->fd[0],data))
-		LINEAR_LIST_PUSH(inactiveNodeList,data);
-	else
+	if(receiveNodeProperties(data->fd[0],data))
 		kill(data->pid,SIGTERM);	
+	else if(nodeBegin(data))
+		kill(data->pid,SIGTERM);
+
+	LINEAR_LIST_PUSH(activeNodeList,data);
 }
 
 static void s_connect(int* argc,char* argv[]){
