@@ -24,6 +24,7 @@ static int receiveNodeProperties(int fd,nodeData* node);
 static int nodeBegin(nodeData* node);
 
 //readline function
+void process_input(char* str);
 char *command_generator(const char* str,int state);
 char **nodeSystem_completion(const char* str,int start,int end);
 
@@ -71,11 +72,11 @@ void lunch(int* argc,char* argv[]){
 	inactiveNodeList  = LINEAR_LIST_CREATE(nodeData*);
 
 	//init terminal
-	char* args[5];
 	rl_readline_name = "NodeSystem";
 	rl_attempted_completion_function = nodeSystem_completion;
 	int oldInFlag = fcntl(STDIN_FILENO,F_GETFL);
 	fcntl(STDIN_FILENO,F_SETFL,oldInFlag|O_NONBLOCK);
+	rl_callback_handler_install(">>>",process_input);
 
 	//loop
 	while(1){
@@ -87,6 +88,7 @@ void lunch(int* argc,char* argv[]){
 		LINEAR_LIST_FOREACH(inactiveNodeList,itr){
 			int res = nodeBegin(*itr);
 			if(res){
+				printf("B\n");
 				if(res < 0){
 					kill((*itr)->pid,SIGTERM);	
 					LINEAR_LIST_ERASE(itr);
@@ -98,10 +100,11 @@ void lunch(int* argc,char* argv[]){
 					LINEAR_LIST_PUSH(activeNodeList,data);
 					break;
 				}
-					
-			}
+			}else
+				printf("A\n");
 		}
 
+				printf("A\n");
 		LINEAR_LIST_FOREACH(activeNodeList,itr){
 			
 		}
@@ -110,34 +113,12 @@ void lunch(int* argc,char* argv[]){
 
 		/*---------------terminalBegin--------------*/
 		//get input
-		char* inputLine = readline(">>>");
-		if(inputLine != NULL && inputLine[0] != '\0'){
-			//add history
-			add_history(inputLine);
-
-			int count = parsArgment(inputLine,sizeof(args)/sizeof(char*),args);
-
-			//check comand input to call command function
-			int i;
-			int commandCount = sizeof(commandList)/sizeof(Command);
-			for(i = 0;i < commandCount;i++){
-				if(strcmp(args[0],commandList[i].name) == 0){
-					commandList[i].func(&count,args);
-					break;
-				}
-			}
-		
-			if(i == commandCount)
-				printf("%s is invalide token\n",args[0]);
-		}
-		if(inputLine)
-			free(inputLine);
-		
-		ts_loop();
+		rl_callback_read_char();	
 
 		/*----------------terminalEnd---------------*/
 	}
 
+	rl_callback_handler_remove();
 	//return
 	putchar('\n');
 
@@ -238,14 +219,63 @@ static int nodeBegin(nodeData* node){
 				((char*)&header_buffer)+count,sizeof(uint32_t)-count,1,1000);
 	}
 
-	if(count != sizeof(uint32_t)){
-		int cursol = rl_point + 3;
-		fprintf(stderr,"[%s]failed recive header\n",node->name);
+	if((count != sizeof(uint32_t)) || header_buffer != _node_begin_head){
+		fprintf(stderr,"\n[%s]failed recive header\n>>>%s",node->name,rl_line_buffer);
 		return -1;
 	}
 
-	
+	//give pipe
+	int i,f = 0;
+	for(i = 0;i < node->pipeCount;i++){
+		switch(node->pipes[i].type){
+			case NODE_IN:{
+				int in[2];
+				if(pipe(in) != 0){
+					f = 1;
+				}else{
+					write(node->fd[1],&in[0],sizeof(int));
+					node->pipes[i].fd[1] = in[1];
+				}
+				break;
+			}			
+			case NODE_OUT:{
+				int out[2];
+				if(pipe(out) != 0){
+					f = 1;
+				}else{
+					write(node->fd[1],&out[1],sizeof(int));
+					node->pipes[i].fd[0] = out[0];
+				}
+				break;
+			}			
+			case NODE_IN_OUT:{
+				int in[2];
+				int out[2];
+				if(pipe(in) != 0 || pipe(out) != 0){
+					f = 1;
+				}else{
+					write(node->fd[1],&in[0],sizeof(int));
+					write(node->fd[1],&out[1],sizeof(int));
+					node->pipes[i].fd[0] = out[0];
+					node->pipes[i].fd[1] = in[1];
+				}
+				break;
+			}
+		}
+		if (f == 1){
+			fprintf(stdout,"\n");
+			perror(node->name);
+			fprintf(stdout,">>>%s",rl_line_buffer);
+			return -1;
+		}
+	}
 
+	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1000) != sizeof(uint32_t)) || header_buffer != _node_begin_eof){
+		fprintf(stderr,"\n[%s]failed recive eof\n>>>%s",node->name,rl_line_buffer);
+		return -1;
+	}
+
+	fprintf(stderr,"\n[%s]node is activate\n>>>%s",node->name,rl_line_buffer);
 	return 1;
 }
 
@@ -381,6 +411,37 @@ static int receiveNodeProperties(int fd,nodeData* node){
 }
 
 //readline func
+void process_input(char* str){
+	char* args[5];
+	char* inputLine = str;
+	if(inputLine != NULL && inputLine[0] != '\0'){
+		//add history
+		add_history(inputLine);
+
+		int count = parsArgment(inputLine,sizeof(args)/sizeof(char*),args);
+
+		//check comand input to call command function
+		int i;
+		int commandCount = sizeof(commandList)/sizeof(Command);
+		for(i = 0;i < commandCount;i++){
+			if(strcmp(args[0],commandList[i].name) == 0){
+				commandList[i].func(&count,args);
+				break;
+			}
+		}
+		
+		if(i == commandCount)
+			printf("%s is invalide token\n",args[0]);
+	}
+
+	if(inputLine)
+		free(inputLine);
+
+	rl_callback_handler_remove();
+	rl_callback_handler_install(">>>",process_input);
+}
+
+
 char *command_generator(const char* str,int status){
 	static int list_index, len;
 
@@ -414,6 +475,7 @@ char **nodeSystem_completion(const char* str,int start,int end){
 
 	return NULL;
 }
+
 
 //command callback
 static void s_help(int* argc,char* argv[]){
@@ -452,7 +514,7 @@ static void s_run(int* argc,char* argv[]){
 	
 	//load properties
 	if(!receiveNodeProperties(data->fd[0],data))
-		LINEAR_LIST_PUSH(activeNodeList,data);
+		LINEAR_LIST_PUSH(inactiveNodeList,data);
 	else
 		kill(data->pid,SIGTERM);	
 }

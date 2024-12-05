@@ -50,6 +50,7 @@ typedef struct{
 	uint16_t length;
 	NODE_PIPE_TYPE type;
 	NODE_DATA_UNIT unit;
+	int fd[2];
 }nodePipe;
 
 typedef struct{

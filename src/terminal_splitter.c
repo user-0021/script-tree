@@ -20,19 +20,15 @@ void ts_loop(){
 
 	if(!rl_point)
 		left_rowCount = 0;
-static int t = 77;
+
 	uint16_t len = rl_point + 3 - left_rowCount * (left_width - 1);
 	if(left_width == len){
+		left_rowCount++;
 		fprintf(stdout,"\e[1D\n\e[1C");
-	}else if(len < 0){
+	}else if(len == 1 && left_rowCount){
+		left_rowCount--;
 		fprintf(stdout,"\e[1F\e[%dC",left_width);
 	}
-	else{
-		if(t != len)
-			fprintf(stdout,"|%d\n",len);
-	}
-
-	t = len;
 }
 
 void ts_print_left(const char* fmt,...){
@@ -40,3 +36,6 @@ void ts_print_left(const char* fmt,...){
 
 void ts_print_right(const char* fmt,...){
 }
+
+
+
