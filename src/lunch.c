@@ -1,10 +1,10 @@
 #include <lunch.h>
+#include <nodeSystem.h>
 #include <linear_list.h>
 #include <script-tree.h>
 
-#include <time.h>
-#include <fcntl.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -15,12 +15,6 @@
 
 //module
 static int parsArgment(char* str,int size,char* argv[]);
-static int popenRWasNonBlock(const char const * command,char* argv[],int* fd);
-static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count);
-static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,uint32_t sec);
-static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t sec);
-static int receiveNodeProperties(int fd,nodeData* node);
-static int nodeBegin(nodeData* node);
 
 //readline function
 void process_input(char* str);
@@ -46,17 +40,12 @@ static const Command commandList[] = {
 	{"clear",s_clear,"clear -- clear display"}
 };
 
-static nodeData** activeNodeList = NULL;
-static uint8_t no_log = 0;
 static uint8_t exit_flag = 0;
-static const uint32_t _node_init_head = 0x83DFC690;
-static const uint32_t _node_init_eof  = 0x85CBADEF;
-static const uint32_t _node_begin_head = 0x9067F3A2;
-static const uint32_t _node_begin_eof  = 0x910AC8BB;
 
 void lunch(int* argc,char* argv[]){
 	printf("lunch success.\n");
 
+	int no_log = 0;
 	//find option
 	int i;
 	for(i = 0;argv[i] != NULL;i++){
@@ -66,7 +55,9 @@ void lunch(int* argc,char* argv[]){
 	}
 
 	//init nodeSystem
-	activeNodeList  = LINEAR_LIST_CREATE(nodeData*);
+	if(nodeSystemInit(no_log) < 0){
+		exit(1);
+	}
 
 	//init terminal
 	rl_readline_name = "NodeSystem";
@@ -79,10 +70,6 @@ void lunch(int* argc,char* argv[]){
 	while(1){
 		if(exit_flag)
 			break;
-
-		/*--------------nodeSystemBegin-------------*/
-		/*---------------nodeSystemEnd--------------*/
-		
 
 		/*---------------terminalBegin--------------*/
 		//get input
@@ -127,248 +114,6 @@ static int parsArgment(char* str,int size,char* argv[]){
 
 	argv[i] = NULL;
 	return i;
-}
-
-static int popenRWasNonBlock(const char const * command,char* argv[],int* fd){
-
-	int pipeTx[2];
-	int pipeRx[2];
-	int pipeErr[2];
-	//create pipe
-	if(pipe(pipeTx) < 0 || pipe(pipeRx) < 0 || pipe(pipeErr) < 0)
-		return -1;
-
-	//fork
-	int process = fork();
-	if(process == -1)
-		return -1;
-
- 	if(process == 0)
-	{//child
-	 	//dup pipe
-		close(pipeTx[1]);
-		close(pipeRx[0]);
-		close(pipeErr[0]);
-		dup2(pipeTx[0], STDIN_FILENO);
-		dup2(pipeRx[1], STDOUT_FILENO);
-		dup2(pipeErr[1], STDERR_FILENO);
-		close(pipeTx[0]);
-		close(pipeRx[1]);
-		close(pipeErr[1]);
-		
-		execvp(command,argv);
-
-		exit(EXIT_SUCCESS);
-	}
-	else
-	{//parent
-		//close pipe
-		close(pipeTx[0]);
-		close(pipeRx[1]);
-		close(pipeErr[1]);
-		fd[0] = pipeRx[0];
-		fd[1] = pipeTx[1];
-		fd[2] = pipeErr[0];
-
-		//set nonblock
-		fcntl(fd[0],F_SETFL,fcntl(fd[0],F_GETFL) | O_NONBLOCK);
-		fcntl(fd[1],F_SETFL,fcntl(fd[1],F_GETFL) | O_NONBLOCK);
-		fcntl(fd[2],F_SETFL,fcntl(fd[2],F_GETFL) | O_NONBLOCK);
-
-		return process;
-	}
-}
-
-static int nodeBegin(nodeData* node){
-	uint32_t header_buffer;
-	
-	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,10000) != sizeof(uint32_t)) || header_buffer != _node_begin_head){
-		fprintf(stderr,"[%s]failed recive header\n",node->name);
-		return -1;
-	}
-
-	//give pipe
-	int i,f = 0;
-	for(i = 0;i < node->pipeCount;i++){
-		switch(node->pipes[i].type){
-			case NODE_IN:{
-				int in[2];
-				if(pipe(in) != 0){
-					f = 1;
-				}else{
-					write(node->fd[1],&in[0],sizeof(int));
-					node->pipes[i].fd[1] = in[1];
-				}
-				break;
-			}			
-			case NODE_OUT:{
-				int out[2];
-				if(pipe(out) != 0){
-					f = 1;
-				}else{
-					write(node->fd[1],&out[1],sizeof(int));
-					node->pipes[i].fd[0] = out[0];
-				}
-				break;
-			}			
-			case NODE_IN_OUT:{
-				int in[2];
-				int out[2];
-				if(pipe(in) != 0 || pipe(out) != 0){
-					f = 1;
-				}else{
-					write(node->fd[1],&in[0],sizeof(int));
-					write(node->fd[1],&out[1],sizeof(int));
-					node->pipes[i].fd[0] = out[0];
-					node->pipes[i].fd[1] = in[1];
-				}
-				break;
-			}
-		}
-		if (f == 1){
-			perror(node->name);
-			return -1;
-		}
-	}
-
-	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1000) != sizeof(uint32_t)) || header_buffer != _node_begin_eof){
-		fprintf(stderr,"[%s]failed recive eof\n",node->name);
-		return -1;
-	}
-
-	fprintf(stderr,"[%s]node is activate\n",node->name);
-	return 0;
-}
-
-static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count){
-	uint64_t bufferSize = size * count;
-	int64_t readCount;
-	uint32_t readSize = 0;
-	
-	do{
-		readCount = read(fd,buffer + readSize,bufferSize);
-		if(readCount > 0)
-			readSize += readCount;
-	}while(readSize != bufferSize);
-}
-
-static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,uint32_t msec){
-	uint64_t bufferSize = size * count;
-	int64_t readCount;
-	uint32_t readSize = 0;
- 	struct timespec target,spec;
-
-    clock_gettime(CLOCK_REALTIME, &target);
-    target.tv_nsec += 1000000LL * msec;
-	target.tv_sec += target.tv_nsec / 1000000000;
-	target.tv_nsec %= 1000000000;
-	
-
-	do{
-    	clock_gettime(CLOCK_REALTIME, &spec);
-		readCount = read(fd,buffer + readSize,bufferSize);
-		if(readCount > 0)
-			readSize += readCount;
-	}while(readSize != bufferSize && !(target.tv_sec < spec.tv_sec && target.tv_nsec < spec.tv_nsec));
-
-	return readSize;
-}
-
-static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t msec){
-	uint32_t readSize = 0;
- 	struct timespec target,spec;
-
-    clock_gettime(CLOCK_REALTIME, &target);
-    target.tv_nsec += 1000000LL * msec;
-	target.tv_sec += target.tv_nsec / 1000000000;
-	target.tv_nsec %= 1000000000;
-	
-	do{
-    	clock_gettime(CLOCK_REALTIME, &spec);
-		if(read(fd,&str[readSize],1) == 1){
-			readSize ++;
-		}
-	}while((readSize == 0 || str[readSize-1] != '\0') && !(target.tv_sec < spec.tv_sec && target.tv_nsec < spec.tv_nsec));
-
-	return readSize;
-}
-
-static int receiveNodeProperties(int fd,nodeData* node){
-	char recvBuffer[1024];
-	
-	//recive header
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_head),1,1000) != sizeof(_node_init_head)){
-		fprintf(stderr,"Header receive sequrnce time out\n");
-		return -1;
-	}else if(((uint32_t*)recvBuffer)[0] != _node_init_head){
-		fprintf(stderr,"received header is invalid\n");
-		return -2;
-	}
-	fprintf(stdout,"Header receive succsee\n");
-
-	//recive pipe count
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
-		fprintf(stderr,"Pipe count receive sequrnce time out\n");
-		return -1;
-	}	
-	node->pipeCount = ((uint16_t*)recvBuffer)[0];
-	node->pipes = malloc(sizeof(nodePipe)*node->pipeCount);
-	memset(node->pipes,0,sizeof(nodePipe)*node->pipeCount);
-	fprintf(stdout,"Pipe count : %d\n",(int)node->pipeCount);
-	
-	//recive pipe
-	uint16_t i;
-	for(i = 0;i < node->pipeCount;i++){
-		//type
-		if(fileReadWithTimeOut(fd,&node->pipes[i].type,sizeof(uint8_t),1,1000) != sizeof(uint8_t)){
-			fprintf(stderr,"Pipe type receive sequrnce time out\n");
-			return -1;
-		}	
-
-		//unit
-		if(fileReadWithTimeOut(fd,&node->pipes[i].unit,sizeof(uint8_t),1,1000) != sizeof(uint8_t)){
-			fprintf(stderr,"Pipe unit receive sequrnce time out\n");
-			return -1;
-		}	
-		
-		//length
-		if(fileReadWithTimeOut(fd,&node->pipes[i].length,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
-			fprintf(stderr,"Unit length receive sequrnce time out\n");
-			return -1;
-		}	
-		
-		//name
-		uint32_t len = fileReadStrWithTimeOut(fd,recvBuffer,sizeof(recvBuffer),1000);
-		if(len == 0 || recvBuffer[len - 1] != '\0'){
-			fprintf(stderr,"Unit length receive sequrnce time out\n");
-			return -1;
-		}
-		node->pipes[i].pipeName = malloc(len);
-		strcpy(node->pipes[i].pipeName,recvBuffer);
-	
-		fprintf(stdout,	
-				"--------------------------------------\n"
-				"PipeName: %s\n"
-				"PipeType: %s\n"
-				"PipeUnit: %s\n"
-				"ArraySize: %d\n"
-				"--------------------------------------\n",
-				node->pipes[i].pipeName,
-				NODE_PIPE_TYPE_STR[node->pipes[i].type],
-				NODE_DATA_UNIT_STR[node->pipes[i].unit],
-				node->pipes[i].length);
-	}
-
-	//recive eof
-	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_eof),1,1000) != sizeof(_node_init_eof)){
-		fprintf(stderr,"EOF receive sequrnce time out\n");
-		return -1;
-	}else if(((uint32_t*)recvBuffer)[0] != _node_init_eof){
-		fprintf(stderr,"received EOF is invalid\n");
-		return -2;
-	}
-	fprintf(stdout,"Header EOF succsee\n");
-	return 0;
 }
 
 //readline func
@@ -460,26 +205,9 @@ static void s_load(int* argc,char* argv[]){
 }
 
 static void s_run(int* argc,char* argv[]){
-	//init struct
-	nodeData* data = malloc(sizeof(nodeData));
-	memset(data,0,sizeof(nodeData));
-	data->name = malloc(strlen(argv[1])+1);
-	strcpy(data->name,argv[1]);
-
-	//execute program
-	data->pid = popenRWasNonBlock(argv[1],&argv[1],data->fd);
-	if(data->pid < 0){
-		perror(__func__);
-		exit(0);
+	if(nodeSystemAdd(argv[1])  < 0){
+		fprintf(stdout,"add node failed\n");
 	}
-	
-	//load properties
-	if(receiveNodeProperties(data->fd[0],data))
-		kill(data->pid,SIGTERM);	
-	else if(nodeBegin(data))
-		kill(data->pid,SIGTERM);
-
-	LINEAR_LIST_PUSH(activeNodeList,data);
 }
 
 static void s_connect(int* argc,char* argv[]){
