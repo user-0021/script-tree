@@ -145,6 +145,36 @@ int nodeSystemAdd(char* path){
 
 static void nodeSystemLoop(){
 	uint8_t head;
+	//check inactive nodes
+	nodeData** itr;
+	LINEAR_LIST_FOREACH(inactiveNodeList,itr){
+		int ret = nodeBegin(*itr);
+		if(!no_log)
+			fflush(logFile);
+		if(ret == 0){
+			nodeData* data = *itr;
+			LINEAR_LIST_ERASE(itr);
+
+			LINEAR_LIST_PUSH(activeNodeList,data);
+		}else if(ret < 0){
+			//kill
+			kill((*itr)->pid,SIGTERM);
+			
+			//free mem
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				free((*itr)->pipes[i].pipeName);
+			}
+			free((*itr)->pipes);
+			free((*itr)->name);
+			free(*itr);
+
+			//deleate from list
+			LINEAR_LIST_ERASE(itr);
+		}
+	}
+
+	//message from parent 
 	if(read(fd[0],&head,sizeof(head)) == 1){
 		//recive from parent
 		switch(head){
@@ -235,7 +265,13 @@ static int popenRWasNonBlock(const char const * command,int* fd){
 static int nodeBegin(nodeData* node){
 	uint32_t header_buffer;
 	
-	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,10000) != sizeof(uint32_t))){
+	int ret = fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1);
+
+	if(ret == 0){
+		fprintf(logFile,"%s:[%s]Rloop\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+		return 1;
+	}
+	else if((ret != sizeof(uint32_t))){
 		if(!no_log)
 			fprintf(logFile,"%s:[%s]Recive header sequence timeout\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
 		return -1;
@@ -333,7 +369,7 @@ static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,
 		readCount = read(fd,buffer + readSize,bufferSize - readSize);
 		if(readCount > 0)
 			readSize += readCount;
-	}while(readSize != bufferSize && !(target.tv_sec < spec.tv_sec && target.tv_nsec < spec.tv_nsec));
+	}while(readSize != bufferSize && !(target.tv_sec <= spec.tv_sec && target.tv_nsec <= spec.tv_nsec));
 
 	return readSize;
 }
