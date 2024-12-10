@@ -1,9 +1,10 @@
 #pragma once 
+#include <stdio.h>
 #include <stdint.h>
 
 
 int nodeSystemInit(uint8_t isNoLog);
-int nodeSystemAdd(char* path);
+int nodeSystemAdd(char* path,char** args);
 
 static const uint32_t _node_init_head = 0x83DFC690;
 static const uint32_t _node_init_eof  = 0x85CBADEF;
@@ -60,12 +61,14 @@ typedef struct{
 	NODE_PIPE_TYPE type;
 	NODE_DATA_UNIT unit;
 	int fd[2];
+	FILE* log;
 }nodePipe;
 
 typedef struct{
 	int pid;
 	int fd[3];
 	char* name;
+	char* filePath;
 	uint16_t pipeCount;
 	nodePipe* pipes;
 }nodeData;

@@ -205,7 +205,7 @@ static void s_load(int* argc,char* argv[]){
 }
 
 static void s_run(int* argc,char* argv[]){
-	if(nodeSystemAdd(argv[1])  < 0){
+	if(nodeSystemAdd(argv[1],&argv[1])  < 0){
 		fprintf(stdout,"add node failed\n");
 	}
 }

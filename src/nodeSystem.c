@@ -14,12 +14,16 @@
 //local func
 static void nodeSystemLoop();
 static int nodeBegin(nodeData* node);
+static void nodeDeleate(nodeData* node);
 static int receiveNodeProperties(int fd,nodeData* node);
 static int popenRWasNonBlock(const char const * command,int* fd);
+
 static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count);
 static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,uint32_t sec);
 static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t sec);
 static char* getRealTimeStr(const char* fmt);
+
+static nodeData* pipeAddNode();
 
 //state enum
 enum _pipeHead{
@@ -130,15 +134,34 @@ int nodeSystemInit(uint8_t isNoLog){
 	return 0;
 }
 
-int nodeSystemAdd(char* path){
+int nodeSystemAdd(char* path,char** args){
 	if(path == NULL)
 		return -1;
+	
+	//count args
+	uint16_t c = 0;
+	while(args[c] != NULL)
+		c++;
 
+	//send message head
 	uint8_t head = PIPE_ADD_NODE;
 	write(fd[1],&head,sizeof(head));
+	
+	//send execute path
 	uint16_t pipeLength = strlen(path) + 1;
 	write(fd[1],&pipeLength,sizeof(pipeLength));
 	write(fd[1],path,pipeLength);
+
+	//send args count
+	write(fd[1],&c,sizeof(c));
+
+	//send args
+	int i;
+	for(i = 0;i < c;i++){
+		uint16_t strLen = strlen(args[i]) + 1; 
+		write(fd[1],&strLen,sizeof(strLen));
+		write(fd[1],args[i],strLen);
+	}
 
 	return 0;
 }
@@ -160,17 +183,29 @@ static void nodeSystemLoop(){
 			//kill
 			kill((*itr)->pid,SIGTERM);
 			
-			//free mem
-			int i;
-			for(i = 0;i < (*itr)->pipeCount;i++){
-				free((*itr)->pipes[i].pipeName);
-			}
-			free((*itr)->pipes);
-			free((*itr)->name);
-			free(*itr);
+			//deleate node
+			nodeDeleate(*itr);
 
 			//deleate from list
 			LINEAR_LIST_ERASE(itr);
+		}
+	}
+
+	//check active node
+	LINEAR_LIST_FOREACH(activeNodeList,itr){
+		if(kill((*itr)->pid,0)){
+			//process is terminated
+			//deleate node
+			nodeDeleate(*itr);
+			//deleate from list
+			LINEAR_LIST_ERASE(itr);
+		}else{
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if((*itr)->pipes[i].type != NODE_IN){
+					
+				}
+			}
 		}
 	}
 
@@ -178,19 +213,12 @@ static void nodeSystemLoop(){
 	if(read(fd[0],&head,sizeof(head)) == 1){
 		//recive from parent
 		switch(head){
-			case PIPE_ADD_NODE:{//add node				
-				//init strujyct
-				nodeData* data = malloc(sizeof(nodeData));
-				memset(data,0,sizeof(nodeData));
+			case PIPE_ADD_NODE:{//add node			
 
-				//get path
-				uint16_t pathLength;
-				fileRead(fd[0],&pathLength,sizeof(pathLength),1);
-				data->name = malloc(pathLength);
-				fileRead(fd[0],data->name,pathLength,1);
+				nodeData* data = pipeAddNode();	
 
 				//execute program
-				data->pid = popenRWasNonBlock(data->name,data->fd);
+				data->pid = popenRWasNonBlock(data->filePath,data->fd);
 				if(data->pid < 0){
 					perror(__func__);
 					exit(0);
@@ -201,15 +229,15 @@ static void nodeSystemLoop(){
 					kill(data->pid,SIGTERM);
 				else
 					LINEAR_LIST_PUSH(inactiveNodeList,data);
-				
-				if(!no_log)
-					fflush(logFile);
 
 				break;
 			}
 			default:
 		}
 	}
+
+	if(!no_log)
+		fflush(logFile);
 }
 
 static int popenRWasNonBlock(const char const * command,int* fd){
@@ -302,6 +330,23 @@ static int nodeBegin(nodeData* node){
 				}else{
 					write(node->fd[1],&out[1],sizeof(int));
 					node->pipes[i].fd[0] = out[0];
+					
+					if(!no_log){
+						//create log file path
+						char logFilePath[1024];
+						strcpy(logFilePath,logFolder);
+						strcat(logFilePath,"/");
+						strcat(logFilePath,node->name);
+						strcat(logFilePath,"_");
+						strcat(logFilePath,node->pipes[i].pipeName);
+						strcat(logFilePath,".txt");
+						node->pipes[i].log = fopen(logFilePath,"w");
+
+						//failed open logFile
+						if(node->pipes[i].log == NULL){
+							fprintf(logFile,"%s:[%s]failed create logfile.\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+						}
+					}
 				}
 				break;
 			}			
@@ -315,6 +360,23 @@ static int nodeBegin(nodeData* node){
 					write(node->fd[1],&out[1],sizeof(int));
 					node->pipes[i].fd[0] = out[0];
 					node->pipes[i].fd[1] = in[1];
+
+					if(!no_log){
+						//create log file path
+						char logFilePath[1024];
+						strcpy(logFilePath,logFolder);
+						strcat(logFilePath,"/");
+						strcat(logFilePath,node->name);
+						strcat(logFilePath,"_");
+						strcat(logFilePath,node->pipes[i].pipeName);
+						strcat(logFilePath,".txt");
+						node->pipes[i].log = fopen(logFilePath,"w");
+
+						//failed open logFile
+						if(node->pipes[i].log == NULL){
+							fprintf(logFile,"%s:[%s]failed create logfile.\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+						}
+					}
 				}
 				break;
 			}
@@ -338,6 +400,25 @@ static int nodeBegin(nodeData* node){
 	if(!no_log)
 		fprintf(logFile,"%s:[%s]node is activate\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
 	return 0;
+}
+
+static void nodeDeleate(nodeData* node){
+
+	//log
+	if(!no_log)
+		fprintf(logFile,"%s:[%s]node is deleate\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+
+	//releace mem
+	int i;
+	for(i = 0;i < node->pipeCount;i++){
+		free(node->pipes[i].pipeName);
+	}
+	
+	free(node->pipes);
+	free(node->name); 
+	free(node->filePath); 
+	free(node);
+
 }
 
 static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count){
@@ -505,4 +586,52 @@ static char* getRealTimeStr(const char* fmt){
 
 	befor = spec.tv_sec;
 	return timeStr;
+}
+
+
+static nodeData* pipeAddNode(){
+	//init struct
+	nodeData* data = malloc(sizeof(nodeData));
+	memset(data,0,sizeof(nodeData));
+
+	//get path
+	uint16_t pathLength;
+	fileRead(fd[0],&pathLength,sizeof(pathLength),1);
+	data->filePath = malloc(pathLength);
+	fileRead(fd[0],data->filePath,pathLength,1);
+	data->name = strrchr(data->filePath,'/');
+	if(data->name)
+		data->name++;
+	else
+		data->name = data->filePath;
+
+	//args count
+	uint16_t argsCount;
+	fileRead(fd[0],&argsCount,sizeof(argsCount),1);
+
+	//load args
+	char** args = malloc(sizeof(char*)*argsCount);
+	int i;
+	for(i = 0;i < argsCount;i++){
+		uint16_t len;
+		fileRead(fd[0],&len,sizeof(len),1);
+		args[i] = malloc(len);
+
+		fileRead(fd[0],args[i],len,1);
+	}
+
+	//do args
+	for(i = 0;i < (argsCount-1);i++){
+		if(strcmp(args[i],"-name") == 0){
+			free(args[i++]);
+			data->name = args[i];
+		}else{
+			free(args[i]);
+		}
+	}
+
+	//free
+	free(args);
+
+	return data;
 }
