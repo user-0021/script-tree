@@ -4,6 +4,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -15,6 +16,7 @@
 static void nodeSystemLoop();
 static int nodeBegin(nodeData* node);
 static void nodeDeleate(nodeData* node);
+static int sendNodeEnv(int fd,nodeData* data);
 static int receiveNodeProperties(int fd,nodeData* node);
 static int popenRWasNonBlock(const char const * command,int* fd);
 
@@ -31,7 +33,7 @@ enum _pipeHead{
 };
 
 //const value
-static const char logRootPath[] = "Logs";
+static const char logRootPath[] = "./Logs";
 
 //global value
 static int pid;
@@ -47,22 +49,21 @@ int nodeSystemInit(uint8_t isNoLog){
 	int in[2],out[2];
 	
 	//create logDirPath
-	char logFilePath[1024];
+	char logFilePath[PATH_MAX];
 
 	strcpy(logFilePath,logRootPath);
 	strcat(logFilePath,"/");
 	strcat(logFilePath,getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
-	
 
 	//createDir
 	if(!no_log){
-		logFolder = malloc(strlen(logFilePath)+1);
-		strcpy(logFolder,logFilePath);
 		mkdir(logRootPath,0777);
 		if(mkdir(logFilePath,0777) != 0){
 			perror(__func__);
 			return -1;
 		}
+
+		logFolder = realpath(logFilePath,NULL);
 	}
 	
 	
@@ -90,12 +91,13 @@ int nodeSystemInit(uint8_t isNoLog){
 		//parent
 		fd[0] = out[0];
 		fd[1] = in[1];
-		close(out[1]);
 		close(in[0]);
+		// close(out[1]); 意味わからんがここコメントアウトするとgnu readlineが暴走する(した)
 	}else{
 		//child
 		fd[0] = in[0];
 		fd[1] = out[1];
+		// close(in[0]);
 		close(out[0]);
 		close(in[1]);
 
@@ -214,7 +216,6 @@ static void nodeSystemLoop(){
 		//recive from parent
 		switch(head){
 			case PIPE_ADD_NODE:{//add node			
-
 				nodeData* data = pipeAddNode();	
 
 				//execute program
@@ -223,6 +224,10 @@ static void nodeSystemLoop(){
 					perror(__func__);
 					exit(0);
 				}
+
+
+				//send data
+				sendNodeEnv(data->fd[1],data);
 				
 				//load properties
 				if(receiveNodeProperties(data->fd[0],data))
@@ -330,23 +335,6 @@ static int nodeBegin(nodeData* node){
 				}else{
 					write(node->fd[1],&out[1],sizeof(int));
 					node->pipes[i].fd[0] = out[0];
-					
-					if(!no_log){
-						//create log file path
-						char logFilePath[1024];
-						strcpy(logFilePath,logFolder);
-						strcat(logFilePath,"/");
-						strcat(logFilePath,node->name);
-						strcat(logFilePath,"_");
-						strcat(logFilePath,node->pipes[i].pipeName);
-						strcat(logFilePath,".txt");
-						node->pipes[i].log = fopen(logFilePath,"w");
-
-						//failed open logFile
-						if(node->pipes[i].log == NULL){
-							fprintf(logFile,"%s:[%s]failed create logfile.\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
-						}
-					}
 				}
 				break;
 			}			
@@ -360,27 +348,11 @@ static int nodeBegin(nodeData* node){
 					write(node->fd[1],&out[1],sizeof(int));
 					node->pipes[i].fd[0] = out[0];
 					node->pipes[i].fd[1] = in[1];
-
-					if(!no_log){
-						//create log file path
-						char logFilePath[1024];
-						strcpy(logFilePath,logFolder);
-						strcat(logFilePath,"/");
-						strcat(logFilePath,node->name);
-						strcat(logFilePath,"_");
-						strcat(logFilePath,node->pipes[i].pipeName);
-						strcat(logFilePath,".txt");
-						node->pipes[i].log = fopen(logFilePath,"w");
-
-						//failed open logFile
-						if(node->pipes[i].log == NULL){
-							fprintf(logFile,"%s:[%s]failed create logfile.\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
-						}
-					}
 				}
-				break;
 			}
-		}
+				break;
+		 }
+		
 		if (f == 1){
 			perror(node->name);
 			return -1;
@@ -473,6 +445,24 @@ static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t msec){
 
 	return readSize;
 }
+
+static int sendNodeEnv(int fd,nodeData* data){
+	//send no_log
+	write(fd,&no_log,sizeof(no_log));
+
+	//log folder path
+
+	char path[PATH_MAX];
+	strcpy(path,logFolder);
+	strcat(path,"/");
+	strcat(path,data->name);
+	strcat(path,".txt");
+
+	uint16_t len = strlen(path)+1;
+	write(fd,&len,sizeof(len));
+	write(fd,path,len);
+}
+
 
 static int receiveNodeProperties(int fd,nodeData* node){
 	char recvBuffer[1024];

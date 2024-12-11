@@ -61,7 +61,6 @@ typedef struct{
 	NODE_PIPE_TYPE type;
 	NODE_DATA_UNIT unit;
 	int fd[2];
-	FILE* log;
 }nodePipe;
 
 typedef struct{
