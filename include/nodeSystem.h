@@ -5,6 +5,7 @@
 
 int nodeSystemInit(uint8_t isNoLog);
 int nodeSystemAdd(char* path,char** args);
+void nodeSystemList(int* argc,char** args);
 
 static const uint32_t _node_init_head = 0x83DFC690;
 static const uint32_t _node_init_eof  = 0x85CBADEF;
@@ -72,4 +73,8 @@ typedef struct{
 	nodePipe* pipes;
 }nodeData;
 
+#define NODE_SYSTEM_SUCCESS 0
+#define NODE_SYSTEM_ALREADY -1
+#define NODE_SYSTEM_FAILED_RUN -2
+#define NODE_SYSTEM_FAILED_INIT -3
 

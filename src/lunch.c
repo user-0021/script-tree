@@ -28,6 +28,7 @@ static void s_save(int* argc,char* argv[]);
 static void s_load(int* argc,char* argv[]);
 static void s_run(int* argc,char* argv[]);
 static void s_connect(int* argc,char* argv[]);
+static void s_list(int* argc,char* argv[]);
 static void s_clear(int* argc,char* argv[]);
 
 static const Command commandList[] = {
@@ -37,6 +38,7 @@ static const Command commandList[] = {
 	{"load",s_load,"load [-f loadPath] -- load node relation from loadPath"},
 	{"run" ,s_run ,"run [-f programPath] -- run programPath as node"},
 	{"connect",s_connect,"connect [NodeName.PortName ...] -- connect ports"},
+	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"}
 };
 
@@ -205,8 +207,9 @@ static void s_load(int* argc,char* argv[]){
 }
 
 static void s_run(int* argc,char* argv[]){
-	if(nodeSystemAdd(argv[1],&argv[1])  < 0){
-		fprintf(stdout,"add node failed\n");
+	int code = nodeSystemAdd(argv[1],&argv[1]);
+	if(code  < 0){
+		fprintf(stdout,"add node failed:code %d\n",code);
 	}
 }
 
@@ -215,4 +218,8 @@ static void s_connect(int* argc,char* argv[]){
 
 static void s_clear(int* argc,char* argv[]){
 	system("clear");
+}
+
+static void s_list(int* argc,char* argv[]){
+	nodeSystemList(argc,argv);
 }

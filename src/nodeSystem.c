@@ -4,6 +4,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,13 +24,15 @@ static int popenRWasNonBlock(const char const * command,int* fd);
 static void fileRead(int fd,void* buffer,uint32_t size,uint32_t count);
 static int fileReadWithTimeOut(int fd,void* buffer,uint32_t size,uint32_t count,uint32_t sec);
 static int fileReadStrWithTimeOut(int fd,char* str,uint32_t len,uint32_t sec);
-static char* getRealTimeStr(const char* fmt);
+static char* getRealTimeStr();
 
 static nodeData* pipeAddNode();
+static void pipeNodeList();
 
 //state enum
 enum _pipeHead{
-	PIPE_ADD_NODE = 0
+	PIPE_ADD_NODE = 0,
+	PIPE_NODE_LIST = 1
 };
 
 //const value
@@ -47,13 +50,19 @@ static nodeData** inactiveNodeList = NULL;
 
 int nodeSystemInit(uint8_t isNoLog){
 	int in[2],out[2];
+
+	//calc timezone
+	time_t t = time(NULL);
+	struct tm lt = {0};
+	localtime_r(&t, &lt);
+	timeZone = lt.tm_gmtoff;
 	
 	//create logDirPath
 	char logFilePath[PATH_MAX];
 
 	strcpy(logFilePath,logRootPath);
 	strcat(logFilePath,"/");
-	strcat(logFilePath,getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+	strcat(logFilePath,getRealTimeStr());
 
 	//createDir
 	if(!no_log){
@@ -68,7 +77,7 @@ int nodeSystemInit(uint8_t isNoLog){
 	
 	
 	// open pipe 
-	if(pipe(in) != 0 && pipe(out) != 0){
+	if(pipe(in) != 0 || pipe(out) != 0){
 		perror(__func__);
 		return -1;
 	}
@@ -92,12 +101,11 @@ int nodeSystemInit(uint8_t isNoLog){
 		fd[0] = out[0];
 		fd[1] = in[1];
 		close(in[0]);
-		// close(out[1]); 意味わからんがここコメントアウトするとgnu readlineが暴走する(した)
+		close(out[1]); //意味わからんがここコメントアウトするとgnu readlineが暴走する(した)
 	}else{
 		//child
 		fd[0] = in[0];
 		fd[1] = out[1];
-		// close(in[0]);
 		close(out[0]);
 		close(in[1]);
 
@@ -118,7 +126,7 @@ int nodeSystemInit(uint8_t isNoLog){
 				exit(-1);
 			}
 
-			fprintf(logFile,"%s:nodeSystem is activate.\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+			fprintf(logFile,"%s:nodeSystem is activate.\n",getRealTimeStr());
 			fflush(logFile);
 		}
 
@@ -135,6 +143,7 @@ int nodeSystemInit(uint8_t isNoLog){
 
 	return 0;
 }
+
 
 int nodeSystemAdd(char* path,char** args){
 	if(path == NULL)
@@ -165,8 +174,90 @@ int nodeSystemAdd(char* path,char** args){
 		write(fd[1],args[i],strLen);
 	}
 
-	return 0;
+	//wait result
+	int res = 0;
+	read(fd[0],&res,sizeof(res));
+
+	return res;
 }
+
+
+void nodeSystemList(int* argc,char** args){
+	//send message head
+	uint8_t head = PIPE_ADD_NODE;
+	write(fd[1],&head,sizeof(head));
+
+	nodeData** itr;
+	//print active list
+	fprintf(stdout,
+				"--------------------active node list--------------------\n");
+
+	uint16_t activeNodeCount;
+	read(fd[0],&activeNodeCount,sizeof(activeNodeCount));
+
+	int i;
+	for(i = 0;i < activeNodeCount;i++){
+		char name[PATH_MAX];
+		char filePath[PATH_MAX];
+
+		size_t len;
+		read(fd[0],&len,sizeof(len));
+		read(fd[0],name,len);
+		read(fd[0],&len,sizeof(len));
+		read(fd[0],filePath,len);
+
+		fprintf(stdout,"\n"
+				"|\tname:%s\n"
+				"|\tpath:%s\n"
+				,name,filePath);
+		
+		uint16_t pipeCount;
+		read(fd[0],&pipeCount,sizeof(pipeCount));
+		int j;
+		for(j = 0;j < pipeCount;j++){
+			NODE_PIPE_TYPE type;
+			char pipeName[PATH_MAX];
+
+			read(fd[0],&len,sizeof(len));
+			read(fd[0],pipeName,len);
+			read(fd[0],&type,sizeof(type));
+
+			fprintf(stdout,"|\n"
+					"|\tpipeName:%s\n"
+					"|\tpipeType:%s\n"
+					,pipeName,NODE_PIPE_TYPE_STR[type]);
+		}
+	}
+
+	// LINEAR_LIST_FOREACH(activeNodeList,itr){
+	// }
+
+	fprintf(stdout,
+				"--------------------------------------------------------\n");
+
+	//print inactive list
+	fprintf(stdout,
+				"-------------------inactive node list-------------------\n");
+
+	// LINEAR_LIST_FOREACH(inactiveNodeList,itr){
+	// 	fprintf(stdout,"\n"
+	// 			"|\tname:%s\n"
+	// 			"|\tpath:%s\n"
+	// 			,(*itr)->name,(*itr)->filePath);
+		
+	// 	int i;
+	// 	for(i = 0;i < (*itr)->pipeCount;i++){
+	// 	fprintf(stdout,"|\n"
+	// 			"|\tpipeName:%s\n"
+	// 			"|\tpipeType:%s\n"
+	// 			,(*itr)->pipes[i].pipeName,NODE_PIPE_TYPE_STR[(*itr)->pipes[i].type]);
+	// 	}
+	// }
+
+	fprintf(stdout,
+				"--------------------------------------------------------\n");
+}
+
 
 static void nodeSystemLoop(){
 	uint8_t head;
@@ -201,28 +292,54 @@ static void nodeSystemLoop(){
 			nodeDeleate(*itr);
 			//deleate from list
 			LINEAR_LIST_ERASE(itr);
-		}else{
-			int i;
-			for(i = 0;i < (*itr)->pipeCount;i++){
-				if((*itr)->pipes[i].type != NODE_IN){
-					
-				}
-			}
 		}
 	}
 
 	//message from parent 
 	if(read(fd[0],&head,sizeof(head)) == 1){
+		//set blocking
+		fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
+
 		//recive from parent
 		switch(head){
-			case PIPE_ADD_NODE:{//add node			
+			case PIPE_ADD_NODE:{//add node		
 				nodeData* data = pipeAddNode();	
+
+				//check name conflict
+				int f = 0;
+				nodeData** itr;
+				LINEAR_LIST_FOREACH(inactiveNodeList,itr){
+					if(strcmp((*itr)->name,data->name) == 0)
+						f =1;
+					else if(f)
+						break;
+				}
+				LINEAR_LIST_FOREACH(activeNodeList,itr){
+					if(strcmp((*itr)->name,data->name) == 0)
+						f =1;
+					else if(f)
+						break;
+				}
+
+				//name conflict
+				if(f){
+					int res = NODE_SYSTEM_ALREADY;
+					write(fd[1],&res,sizeof(res));
+					break;
+				}
+
+				
 
 				//execute program
 				data->pid = popenRWasNonBlock(data->filePath,data->fd);
 				if(data->pid < 0){
-					perror(__func__);
-					exit(0);
+					if(!no_log)
+						fprintf(logFile,"%s:[%s]%s\n",getRealTimeStr(),data->name,strerror(errno));
+					free(data);
+
+					int res = NODE_SYSTEM_FAILED_RUN;
+					write(fd[1],&res,sizeof(res));
+					break;
 				}
 
 
@@ -230,15 +347,33 @@ static void nodeSystemLoop(){
 				sendNodeEnv(data->fd[1],data);
 				
 				//load properties
-				if(receiveNodeProperties(data->fd[0],data))
+				if(receiveNodeProperties(data->fd[0],data)){
 					kill(data->pid,SIGTERM);
+					free(data);
+
+					int res = NODE_SYSTEM_FAILED_INIT;
+					write(fd[1],&res,sizeof(res));
+					break;
+				}
 				else
 					LINEAR_LIST_PUSH(inactiveNodeList,data);
 
+
+				int res = NODE_SYSTEM_SUCCESS;
+				if(write(fd[1],&res,sizeof(res)) != sizeof(res)){
+						fprintf(logFile,"%s:[%s]%s\n",getRealTimeStr(),data->name,strerror(errno));
+				}
+				break;
+			}
+			case PIPE_NODE_LIST:{//node list
+				pipeNodeList();		
 				break;
 			}
 			default:
 		}
+
+		//set nonblocking
+		fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
 	}
 
 	if(!no_log)
@@ -301,16 +436,16 @@ static int nodeBegin(nodeData* node){
 	int ret = fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1);
 
 	if(ret == 0){
-		fprintf(logFile,"%s:[%s]Rloop\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+		fprintf(logFile,"%s:[%s]Rloop\n",getRealTimeStr(),node->name);
 		return 1;
 	}
 	else if((ret != sizeof(uint32_t))){
 		if(!no_log)
-			fprintf(logFile,"%s:[%s]Recive header sequence timeout\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+			fprintf(logFile,"%s:[%s]Recive header sequence timeout\n",getRealTimeStr(),node->name);
 		return -1;
 	}else if(header_buffer != _node_begin_head){
 		if(!no_log)
-			fprintf(logFile,"%s:[%s]Failed recive header\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+			fprintf(logFile,"%s:[%s]Failed recive header\n",getRealTimeStr(),node->name);
 		return -2;
 	}
 
@@ -361,16 +496,16 @@ static int nodeBegin(nodeData* node){
 
 	if((fileReadWithTimeOut(node->fd[0],&header_buffer,sizeof(uint32_t),1,1000) != sizeof(uint32_t))){
 		if(!no_log)
-			fprintf(logFile,"%s:[%s]Recive eof sequence timeout\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+			fprintf(logFile,"%s:[%s]Recive eof sequence timeout\n",getRealTimeStr(),node->name);
 		return -1;
 	}else if(header_buffer != _node_begin_eof){
 		if(!no_log)
-			fprintf(logFile,"%s:[%s]failed recive eof\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+			fprintf(logFile,"%s:[%s]failed recive eof\n",getRealTimeStr(),node->name);
 		return -2;
 	}
 
 	if(!no_log)
-		fprintf(logFile,"%s:[%s]node is activate\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+		fprintf(logFile,"%s:[%s]node is activate\n",getRealTimeStr(),node->name);
 	return 0;
 }
 
@@ -378,7 +513,7 @@ static void nodeDeleate(nodeData* node){
 
 	//log
 	if(!no_log)
-		fprintf(logFile,"%s:[%s]node is deleate\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),node->name);
+		fprintf(logFile,"%s:[%s]node is deleate\n",getRealTimeStr(),node->name);
 
 	//releace mem
 	int i;
@@ -470,51 +605,51 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	//recive header
 	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_head),1,1000) != sizeof(_node_init_head)){
 		if(!no_log)
-			fprintf(logFile,"%s:Header receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+			fprintf(logFile,"%s:Header receive sequence time out\n",getRealTimeStr());
 		return -1;
 	}else if(((uint32_t*)recvBuffer)[0] != _node_init_head){
 		if(!no_log)
-			fprintf(logFile,"%s:Received header is invalid\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+			fprintf(logFile,"%s:Received header is invalid\n",getRealTimeStr());
 		return -2;
 	}
 	if(!no_log)
-		fprintf(logFile,"%s:Header receive succsee\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+		fprintf(logFile,"%s:Header receive succsee\n",getRealTimeStr());
 
 	//recive pipe count
 	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
 		if(!no_log)
-			fprintf(logFile,"%s:Pipe count receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+			fprintf(logFile,"%s:Pipe count receive sequence time out\n",getRealTimeStr());
 		return -1;
 	}	
 	node->pipeCount = ((uint16_t*)recvBuffer)[0];
 	node->pipes = malloc(sizeof(nodePipe)*node->pipeCount);
 	memset(node->pipes,0,sizeof(nodePipe)*node->pipeCount);
 	if(!no_log)
-		fprintf(logFile,"%s:Pipe count %d\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"),(int)node->pipeCount);
+		fprintf(logFile,"%s:Pipe count %d\n",getRealTimeStr(),(int)node->pipeCount);
 	
 	//recive pipe
 	if(!no_log)
-		fprintf(logFile,"%s:Pipe receive sequence begin\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+		fprintf(logFile,"%s:Pipe receive sequence begin\n",getRealTimeStr());
 	uint16_t i;
 	for(i = 0;i < node->pipeCount;i++){
 		//type
 		if(fileReadWithTimeOut(fd,&node->pipes[i].type,sizeof(uint8_t),1,1000) != sizeof(uint8_t)){
 			if(!no_log)
-				fprintf(logFile,"%s:Pipe type receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+				fprintf(logFile,"%s:Pipe type receive sequence time out\n",getRealTimeStr());
 			return -1;
 		}	
 
 		//unit
 		if(fileReadWithTimeOut(fd,&node->pipes[i].unit,sizeof(uint8_t),1,1000) != sizeof(uint8_t)){
 			if(!no_log)
-				fprintf(logFile,"%s:Pipe unit receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+				fprintf(logFile,"%s:Pipe unit receive sequence time out\n",getRealTimeStr());
 			return -1;
 		}	
 		
 		//length
 		if(fileReadWithTimeOut(fd,&node->pipes[i].length,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
 			if(!no_log)
-				fprintf(logFile,"%s:Unit length receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+				fprintf(logFile,"%s:Unit length receive sequence time out\n",getRealTimeStr());
 			return -1;
 		}	
 		
@@ -522,7 +657,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 		uint32_t len = fileReadStrWithTimeOut(fd,recvBuffer,sizeof(recvBuffer),1000);
 		if(len == 0 || recvBuffer[len - 1] != '\0'){
 			if(!no_log)
-				fprintf(logFile,"%s:Unit length receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+				fprintf(logFile,"%s:Unit length receive sequence time out\n",getRealTimeStr());
 			return -1;
 		}
 		node->pipes[i].pipeName = malloc(len);
@@ -542,20 +677,20 @@ static int receiveNodeProperties(int fd,nodeData* node){
 				node->pipes[i].length);
 	}
 	if(!no_log)
-		fprintf(logFile,"%s:Pipe receive sequence end\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+		fprintf(logFile,"%s:Pipe receive sequence end\n",getRealTimeStr());
 
 	//recive eof
 	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_eof),1,1000) != sizeof(_node_init_eof)){
 		if(!no_log)
-			fprintf(logFile,"%s:EOF receive sequence time out\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+			fprintf(logFile,"%s:EOF receive sequence time out\n",getRealTimeStr());
 		return -1;
 	}else if(((uint32_t*)recvBuffer)[0] != _node_init_eof){
 		if(!no_log)
-			fprintf(logFile,"%s:received EOF is invalid\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+			fprintf(logFile,"%s:received EOF is invalid\n",getRealTimeStr());
 		return -2;
 	}
 	if(!no_log)
-		fprintf(logFile,"%s:Header EOF succsee\n",getRealTimeStr("%Y-%m-%d-(%a)-%H:%M:%S"));
+		fprintf(logFile,"%s:Header EOF succsee\n",getRealTimeStr());
 
 	return 0;
 }
@@ -566,13 +701,14 @@ static char* getRealTimeStr(const char* fmt){
 
 	struct timespec spec;
     struct tm _tm;
-	clock_gettime(CLOCK_REALTIME, &spec);
+	clock_gettime(CLOCK_REALTIME_COARSE, &spec);
+	spec.tv_sec += timeZone;
 
 	if(spec.tv_sec == befor)
 		return timeStr;
 
 	gmtime_r(&spec.tv_sec,&_tm);
-	strftime(timeStr,sizeof(timeStr),fmt,&_tm);
+	strftime(timeStr,sizeof(timeStr),"%Y-%m-%d-(%a)-%H:%M:%S",&_tm);
 
 	befor = spec.tv_sec;
 	return timeStr;
@@ -624,4 +760,30 @@ static nodeData* pipeAddNode(){
 	free(args);
 
 	return data;
+}
+
+static void pipeNodeList(){
+	uint16_t nodeCount = 0;
+	nodeData** itr;
+	LINEAR_LIST_FOREACH(activeNodeList,itr){
+		nodeCount++;
+	}
+
+	write(fd[1],&nodeCount,sizeof(nodeCount));
+	LINEAR_LIST_FOREACH(activeNodeList,itr){
+		uint16_t len = strlen((*itr)->name)+1;
+		write(fd[1],&len,sizeof(len));
+		write(fd[1],(*itr)->name,len);
+		len = strlen((*itr)->filePath)+1;
+		write(fd[1],&len,sizeof(len));
+		write(fd[1],(*itr)->filePath,len);
+
+		int i;
+		for(i = 0;i < (*itr)->pipeCount;i++){
+			len = strlen((*itr)->pipes[i].pipeName)+1;
+			write(fd[1],&len,sizeof(len));
+			write(fd[1],(*itr)->pipes[i].pipeName,len);
+			write(fd[1],&(*itr)->pipes[i].type,sizeof(NODE_PIPE_TYPE));
+		}
+	}
 }
