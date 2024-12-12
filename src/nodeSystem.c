@@ -32,7 +32,8 @@ static void pipeNodeList();
 //state enum
 enum _pipeHead{
 	PIPE_ADD_NODE = 0,
-	PIPE_NODE_LIST = 1
+	PIPE_NODE_LIST = 1,
+	PIPE_NODE_CONNECT = 2
 };
 
 //const value
@@ -148,6 +149,9 @@ int nodeSystemInit(uint8_t isNoLog){
 int nodeSystemAdd(char* path,char** args){
 	if(path == NULL)
 		return -1;
+
+	//set blocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
 	
 	//count args
 	uint16_t c = 0;
@@ -178,13 +182,19 @@ int nodeSystemAdd(char* path,char** args){
 	int res = 0;
 	read(fd[0],&res,sizeof(res));
 
+	//set nonblocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
+
 	return res;
 }
 
 
 void nodeSystemList(int* argc,char** args){
+	//set blocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
+
 	//send message head
-	uint8_t head = PIPE_ADD_NODE;
+	uint8_t head = PIPE_NODE_LIST;
 	write(fd[1],&head,sizeof(head));
 
 	nodeData** itr;
@@ -194,43 +204,59 @@ void nodeSystemList(int* argc,char** args){
 
 	uint16_t activeNodeCount;
 	read(fd[0],&activeNodeCount,sizeof(activeNodeCount));
+	
 
 	int i;
 	for(i = 0;i < activeNodeCount;i++){
 		char name[PATH_MAX];
 		char filePath[PATH_MAX];
-
 		size_t len;
+
+		//print head
+		fprintf(stdout,"\n"
+				"|------------------------------------------");
+		
+		//receive node name
 		read(fd[0],&len,sizeof(len));
 		read(fd[0],name,len);
+
+		//receive node file
 		read(fd[0],&len,sizeof(len));
 		read(fd[0],filePath,len);
 
+		//print node anme and path
 		fprintf(stdout,"\n"
 				"|\tname:%s\n"
 				"|\tpath:%s\n"
 				,name,filePath);
 		
+		//receive pipe count
 		uint16_t pipeCount;
 		read(fd[0],&pipeCount,sizeof(pipeCount));
+
 		int j;
 		for(j = 0;j < pipeCount;j++){
 			NODE_PIPE_TYPE type;
 			char pipeName[PATH_MAX];
 
+			//receive pipe name
 			read(fd[0],&len,sizeof(len));
 			read(fd[0],pipeName,len);
+
+			//receive node type
 			read(fd[0],&type,sizeof(type));
 
+			//print pipe name and type
 			fprintf(stdout,"|\n"
 					"|\tpipeName:%s\n"
 					"|\tpipeType:%s\n"
 					,pipeName,NODE_PIPE_TYPE_STR[type]);
 		}
-	}
 
-	// LINEAR_LIST_FOREACH(activeNodeList,itr){
-	// }
+		fprintf(stdout,
+				"|\n"
+				"|------------------------------------------\n");
+	}
 
 	fprintf(stdout,
 				"--------------------------------------------------------\n");
@@ -239,25 +265,102 @@ void nodeSystemList(int* argc,char** args){
 	fprintf(stdout,
 				"-------------------inactive node list-------------------\n");
 
-	// LINEAR_LIST_FOREACH(inactiveNodeList,itr){
-	// 	fprintf(stdout,"\n"
-	// 			"|\tname:%s\n"
-	// 			"|\tpath:%s\n"
-	// 			,(*itr)->name,(*itr)->filePath);
+
+	uint16_t inactiveNodeCount;
+	read(fd[0],&inactiveNodeCount,sizeof(inactiveNodeCount));
+	
+
+	for(i = 0;i < inactiveNodeCount;i++){
+		char name[PATH_MAX];
+		char filePath[PATH_MAX];
+		size_t len;
+
+		//print head
+		fprintf(stdout,"\n"
+				"|------------------------------------------");
 		
-	// 	int i;
-	// 	for(i = 0;i < (*itr)->pipeCount;i++){
-	// 	fprintf(stdout,"|\n"
-	// 			"|\tpipeName:%s\n"
-	// 			"|\tpipeType:%s\n"
-	// 			,(*itr)->pipes[i].pipeName,NODE_PIPE_TYPE_STR[(*itr)->pipes[i].type]);
-	// 	}
-	// }
+		//receive node name
+		read(fd[0],&len,sizeof(len));
+		read(fd[0],name,len);
+
+		//receive node file
+		read(fd[0],&len,sizeof(len));
+		read(fd[0],filePath,len);
+
+		//print node anme and path
+		fprintf(stdout,"\n"
+				"|\tname:%s\n"
+				"|\tpath:%s\n"
+				,name,filePath);
+		
+		//receive pipe count
+		uint16_t pipeCount;
+		read(fd[0],&pipeCount,sizeof(pipeCount));
+
+		int j;
+		for(j = 0;j < pipeCount;j++){
+			NODE_PIPE_TYPE type;
+			char pipeName[PATH_MAX];
+
+			//receive pipe name
+			read(fd[0],&len,sizeof(len));
+			read(fd[0],pipeName,len);
+
+			//receive node type
+			read(fd[0],&type,sizeof(type));
+
+			//print pipe name and type
+			fprintf(stdout,"|\n"
+					"|\tpipeName:%s\n"
+					"|\tpipeType:%s\n"
+					,pipeName,NODE_PIPE_TYPE_STR[type]);
+		}
+
+		fprintf(stdout,
+				"|\n"
+				"|------------------------------------------\n");
+	}
 
 	fprintf(stdout,
 				"--------------------------------------------------------\n");
+
+	//set nonblocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
 }
 
+int nodeSystemConnect(char* const inNode,char* const inPipe,char* const outNode,char* const outPipe){
+	//set blocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
+	
+	//send message head
+	uint8_t head = PIPE_NODE_CONNECT;
+	write(fd[1],&head,sizeof(head));
+	
+	//send in pipe
+	size_t len = strlen(inNode)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],inNode,len);
+	len = strlen(inPipe)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],inPipe,len);
+
+	//send out pipe
+	len = strlen(outNode)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],outNode,len);
+	len = strlen(outPipe)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],outPipe,len);
+
+	//wait result
+	int res = 0;
+	read(fd[0],&res,sizeof(res));
+
+	//set nonblocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
+
+	return res;
+}
 
 static void nodeSystemLoop(){
 	uint8_t head;
@@ -765,24 +868,73 @@ static nodeData* pipeAddNode(){
 static void pipeNodeList(){
 	uint16_t nodeCount = 0;
 	nodeData** itr;
+	
+	//get node count
 	LINEAR_LIST_FOREACH(activeNodeList,itr){
 		nodeCount++;
 	}
 
+	//send node count
 	write(fd[1],&nodeCount,sizeof(nodeCount));
+	
 	LINEAR_LIST_FOREACH(activeNodeList,itr){
-		uint16_t len = strlen((*itr)->name)+1;
+		//send node name
+		size_t len = strlen((*itr)->name)+1;
 		write(fd[1],&len,sizeof(len));
 		write(fd[1],(*itr)->name,len);
+		
+		//send file path
 		len = strlen((*itr)->filePath)+1;
 		write(fd[1],&len,sizeof(len));
 		write(fd[1],(*itr)->filePath,len);
 
+		//send pipe count
+		write(fd[1],&(*itr)->pipeCount,sizeof((*itr)->pipeCount));
+		
 		int i;
 		for(i = 0;i < (*itr)->pipeCount;i++){
+			//semd pipe name
 			len = strlen((*itr)->pipes[i].pipeName)+1;
 			write(fd[1],&len,sizeof(len));
 			write(fd[1],(*itr)->pipes[i].pipeName,len);
+			
+			//send pipe type
+			write(fd[1],&(*itr)->pipes[i].type,sizeof(NODE_PIPE_TYPE));
+		}
+	}
+
+
+	//get node count
+	nodeCount = 0;
+	LINEAR_LIST_FOREACH(inactiveNodeList,itr){
+		nodeCount++;
+	}
+
+	//send node count
+	write(fd[1],&nodeCount,sizeof(nodeCount));
+	
+	LINEAR_LIST_FOREACH(inactiveNodeList,itr){
+		//send node name
+		size_t len = strlen((*itr)->name)+1;
+		write(fd[1],&len,sizeof(len));
+		write(fd[1],(*itr)->name,len);
+		
+		//send file path
+		len = strlen((*itr)->filePath)+1;
+		write(fd[1],&len,sizeof(len));
+		write(fd[1],(*itr)->filePath,len);
+
+		//send pipe count
+		write(fd[1],&(*itr)->pipeCount,sizeof((*itr)->pipeCount));
+		
+		int i;
+		for(i = 0;i < (*itr)->pipeCount;i++){
+			//semd pipe name
+			len = strlen((*itr)->pipes[i].pipeName)+1;
+			write(fd[1],&len,sizeof(len));
+			write(fd[1],(*itr)->pipes[i].pipeName,len);
+			
+			//send pipe type
 			write(fd[1],&(*itr)->pipes[i].type,sizeof(NODE_PIPE_TYPE));
 		}
 	}

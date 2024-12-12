@@ -6,6 +6,7 @@
 int nodeSystemInit(uint8_t isNoLog);
 int nodeSystemAdd(char* path,char** args);
 void nodeSystemList(int* argc,char** args);
+int nodeSystemConnect(char* const inNode,char* const inPipe,char* const outNode,char* const outPipe);
 
 static const uint32_t _node_init_head = 0x83DFC690;
 static const uint32_t _node_init_eof  = 0x85CBADEF;
@@ -37,7 +38,7 @@ typedef enum{
 	NODE_UINT_24	= 9,
 	NODE_UINT_32	= 10,
 	NODE_FLOAT		= 11,
-	NODE_DOUBLE		= 12,
+	NODE_DOUBLE		= 12
 } NODE_DATA_UNIT;
 
 static const char* NODE_DATA_UNIT_STR[13] = {
