@@ -37,7 +37,7 @@ static const Command commandList[] = {
 	{"save",s_save,"save [-f savePath] -- save node relation to savePath"},
 	{"load",s_load,"load [-f loadPath] -- load node relation from loadPath"},
 	{"run" ,s_run ,"run [-f programPath] -- run programPath as node"},
-	{"connect",s_connect,"connect [NodeName.PortName ...] -- connect ports"},
+	{"connect",s_connect,"connect [inNodeName] [inPipeName] [outNodeName] [outPipeName] -- connect ports"},
 	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"}
 };
@@ -120,7 +120,7 @@ static int parsArgment(char* str,int size,char* argv[]){
 
 //readline func
 void process_input(char* str){
-	char* args[5];
+	char* args[10];
 	char* inputLine = str;
 	if(inputLine != NULL && inputLine[0] != '\0'){
 		//add history
@@ -208,12 +208,23 @@ static void s_load(int* argc,char* argv[]){
 
 static void s_run(int* argc,char* argv[]){
 	int code = nodeSystemAdd(argv[1],&argv[1]);
-	if(code  < 0){
+	if(code  != 0)
 		fprintf(stdout,"add node failed:code %d\n",code);
-	}
+	else
+		fprintf(stdout,"add node success\n");
 }
 
 static void s_connect(int* argc,char* argv[]){
+	if(*argc < 5){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	int code = nodeSystemConnect(argv[1],argv[2],argv[3],argv[4]);
+	if(code != 0)
+		fprintf(stdout,"pipe connect failed:code %d\n",code);
+	else
+		fprintf(stdout,"pipe connect success\n");
 }
 
 static void s_clear(int* argc,char* argv[]){

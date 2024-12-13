@@ -15,14 +15,12 @@ static const uint32_t _node_begin_eof  = 0x910AC8BB;
 
 typedef enum{
 	NODE_IN		= 0,
-	NODE_OUT	= 1,
-	NODE_IN_OUT	= 2
+	NODE_OUT	= 1
 } NODE_PIPE_TYPE;
 
 static const char* NODE_PIPE_TYPE_STR[3] = {
 	"IN",
-	"OUT",
-	"IN/OUT"
+	"OUT"
 };
 
 typedef enum{
@@ -57,12 +55,29 @@ static const char* NODE_DATA_UNIT_STR[13] = {
 	"DOUBLE"
 };
 
+static const uint16_t NODE_DATA_UNIT_SIZE[13] = {
+	0,
+	sizeof(char),
+	1,
+	sizeof(int8_t),
+	sizeof(int16_t),
+	3,
+	sizeof(int32_t),
+	sizeof(uint8_t),
+	sizeof(uint16_t),
+	3,
+	sizeof(uint32_t),
+	sizeof(float),
+	sizeof(double)
+};
+
 typedef struct{
 	char* pipeName;
 	uint16_t length;
 	NODE_PIPE_TYPE type;
 	NODE_DATA_UNIT unit;
-	int fd[2];
+	char* connectPipe;
+	int sID;
 }nodePipe;
 
 typedef struct{
@@ -78,4 +93,6 @@ typedef struct{
 #define NODE_SYSTEM_ALREADY -1
 #define NODE_SYSTEM_FAILED_RUN -2
 #define NODE_SYSTEM_FAILED_INIT -3
+#define NODE_SYSTEM_NONE_SUCH_THAT -4
+#define NODE_SYSTEM_INVALID_ARGS -5
 

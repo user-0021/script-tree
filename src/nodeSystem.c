@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <sys/stat.h>
 
 //local func
@@ -28,6 +30,7 @@ static char* getRealTimeStr();
 
 static nodeData* pipeAddNode();
 static void pipeNodeList();
+static void pipeNodeConnect();
 
 //state enum
 enum _pipeHead{
@@ -136,6 +139,20 @@ int nodeSystemInit(uint8_t isNoLog){
 		while(kill(parent,0) == 0)
 			nodeSystemLoop();
 
+		//remove mem
+		nodeData** itr;
+		LINEAR_LIST_FOREACH(activeNodeList,itr){
+			fprintf(logFile,"%s:[%s]kill\n",getRealTimeStr(),(*itr)->name);
+			fflush(logFile);
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if((*itr)->pipes[i].type == NODE_OUT){
+					shmctl((*itr)->pipes[i].sID,IPC_RMID,NULL);
+					if(!no_log)
+						fprintf(logFile,"%s:[%s]shmctl(IPC_RMID):%s\n",getRealTimeStr(),(*itr)->name,strerror(errno));
+				}
+			}
+		}
 
 		if(!no_log)
 			fclose(logFile);
@@ -368,8 +385,6 @@ static void nodeSystemLoop(){
 	nodeData** itr;
 	LINEAR_LIST_FOREACH(inactiveNodeList,itr){
 		int ret = nodeBegin(*itr);
-		if(!no_log)
-			fflush(logFile);
 		if(ret == 0){
 			nodeData* data = *itr;
 			LINEAR_LIST_ERASE(itr);
@@ -378,7 +393,7 @@ static void nodeSystemLoop(){
 		}else if(ret < 0){
 			//kill
 			kill((*itr)->pid,SIGTERM);
-			
+
 			//deleate node
 			nodeDeleate(*itr);
 
@@ -391,6 +406,17 @@ static void nodeSystemLoop(){
 	LINEAR_LIST_FOREACH(activeNodeList,itr){
 		if(kill((*itr)->pid,0)){
 			//process is terminated
+
+			//remove mem
+			int i;
+			for(i = 0;(*itr)->pipeCount;i++){
+				if((*itr)->pipes[i].type == NODE_OUT){
+					shmctl((*itr)->pipes[i].sID,IPC_RMID,NULL);
+					if(!no_log)
+						fprintf(logFile,"%s:[%s]shmctl(IPC_RMID):%s\n",getRealTimeStr(),(*itr)->name,strerror(errno));
+				}
+			}
+
 			//deleate node
 			nodeDeleate(*itr);
 			//deleate from list
@@ -463,13 +489,16 @@ static void nodeSystemLoop(){
 
 
 				int res = NODE_SYSTEM_SUCCESS;
-				if(write(fd[1],&res,sizeof(res)) != sizeof(res)){
-						fprintf(logFile,"%s:[%s]%s\n",getRealTimeStr(),data->name,strerror(errno));
-				}
+				write(fd[1],&res,sizeof(res));
+				
 				break;
 			}
 			case PIPE_NODE_LIST:{//node list
 				pipeNodeList();		
+				break;
+			}
+			case PIPE_NODE_CONNECT:{//node list
+				pipeNodeConnect();		
 				break;
 			}
 			default:
@@ -553,47 +582,23 @@ static int nodeBegin(nodeData* node){
 	}
 
 	//give pipe
-	int i,f = 0;
+	int i;
 	for(i = 0;i < node->pipeCount;i++){
-		switch(node->pipes[i].type){
-			case NODE_IN:{
-				int in[2];
-				if(pipe(in) != 0){
-					f = 1;
-				}else{
-					write(node->fd[1],&in[0],sizeof(int));
-					node->pipes[i].fd[1] = in[1];
-				}
-				break;
-			}			
-			case NODE_OUT:{
-				int out[2];
-				if(pipe(out) != 0){
-					f = 1;
-				}else{
-					write(node->fd[1],&out[1],sizeof(int));
-					node->pipes[i].fd[0] = out[0];
-				}
-				break;
-			}			
-			case NODE_IN_OUT:{
-				int in[2];
-				int out[2];
-				if(pipe(in) != 0 || pipe(out) != 0){
-					f = 1;
-				}else{
-					write(node->fd[1],&in[0],sizeof(int));
-					write(node->fd[1],&out[1],sizeof(int));
-					node->pipes[i].fd[0] = out[0];
-					node->pipes[i].fd[1] = in[1];
-				}
+		if(node->pipes[i].type == NODE_OUT){
+			size_t memSize = NODE_DATA_UNIT_SIZE[node->pipes[i].unit] * node->pipes[i].length;
+
+			fprintf(logFile,"%s:[%s]%d %dlen is %ld\n",getRealTimeStr(),node->name,(int)NODE_DATA_UNIT_SIZE[node->pipes[i].unit],(int) node->pipes[i].length,memSize);
+
+			int sId = shmget(IPC_PRIVATE, memSize,0666);
+			if(sId < 0){
+				if(!no_log)
+					fprintf(logFile,"%s:[%s.%s]failed shmget() : %s\n",getRealTimeStr(),node->name,node->pipes[i].pipeName,strerror(errno));
+				return -1;
 			}
-				break;
-		 }
-		
-		if (f == 1){
-			perror(node->name);
-			return -1;
+
+			
+			write(node->fd[1],&sId,sizeof(sId));
+			node->pipes[i].sID = sId;
 		}
 	}
 
@@ -705,7 +710,7 @@ static int sendNodeEnv(int fd,nodeData* data){
 static int receiveNodeProperties(int fd,nodeData* node){
 	char recvBuffer[1024];
 	
-	//recive header
+	//receive header
 	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(_node_init_head),1,1000) != sizeof(_node_init_head)){
 		if(!no_log)
 			fprintf(logFile,"%s:Header receive sequence time out\n",getRealTimeStr());
@@ -718,7 +723,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	if(!no_log)
 		fprintf(logFile,"%s:Header receive succsee\n",getRealTimeStr());
 
-	//recive pipe count
+	//receive pipe count
 	if(fileReadWithTimeOut(fd,recvBuffer,sizeof(uint16_t),1,1000) != sizeof(uint16_t)){
 		if(!no_log)
 			fprintf(logFile,"%s:Pipe count receive sequence time out\n",getRealTimeStr());
@@ -730,7 +735,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	if(!no_log)
 		fprintf(logFile,"%s:Pipe count %d\n",getRealTimeStr(),(int)node->pipeCount);
 	
-	//recive pipe
+	//receive pipe
 	if(!no_log)
 		fprintf(logFile,"%s:Pipe receive sequence begin\n",getRealTimeStr());
 	uint16_t i;
@@ -938,4 +943,61 @@ static void pipeNodeList(){
 			write(fd[1],&(*itr)->pipes[i].type,sizeof(NODE_PIPE_TYPE));
 		}
 	}
+}
+
+static void pipeNodeConnect(){
+	char inNode[PATH_MAX];
+	char inPipe[PATH_MAX];
+	char outNode[PATH_MAX];
+	char outPipe[PATH_MAX];
+	
+	//receive in pipe
+	size_t len;
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],inNode,len);
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],inPipe,len);
+
+	//receive out pipe
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],outNode,len);
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],outPipe,len);
+
+	//finde pipe
+	nodePipe *in = NULL,*out = NULL;
+	nodeData** itr;
+	LINEAR_LIST_FOREACH(activeNodeList,itr){
+		if(strcmp((*itr)->name,inNode) == 0){
+			//find in pipe
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if(strcmp((*itr)->pipes[i].pipeName,inPipe) == 0){
+					in = &(*itr)->pipes[i];
+				}
+			}
+		}
+
+		if(strcmp((*itr)->name,outNode) == 0){
+			//find out pipe
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if(strcmp((*itr)->pipes[i].pipeName,outPipe) == 0){
+					out = &(*itr)->pipes[i];
+				}
+			}
+		}
+	}
+
+	int res = 0;
+	if(out == NULL || in == NULL){
+		res = NODE_SYSTEM_NONE_SUCH_THAT;
+	}else if(in->type == NODE_OUT || out->type == NODE_IN){
+		res = NODE_SYSTEM_INVALID_ARGS;
+	}else{
+
+	}
+
+	//send result
+	write(fd[1],&res,sizeof(res));
 }
