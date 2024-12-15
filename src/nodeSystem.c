@@ -585,9 +585,7 @@ static int nodeBegin(nodeData* node){
 	int i;
 	for(i = 0;i < node->pipeCount;i++){
 		if(node->pipes[i].type == NODE_OUT){
-			size_t memSize = NODE_DATA_UNIT_SIZE[node->pipes[i].unit] * node->pipes[i].length;
-
-			fprintf(logFile,"%s:[%s]%d %dlen is %ld\n",getRealTimeStr(),node->name,(int)NODE_DATA_UNIT_SIZE[node->pipes[i].unit],(int) node->pipes[i].length,memSize);
+			size_t memSize = NODE_DATA_UNIT_SIZE[node->pipes[i].unit] * node->pipes[i].length + 1;
 
 			int sId = shmget(IPC_PRIVATE, memSize,0666);
 			if(sId < 0){
@@ -803,7 +801,7 @@ static int receiveNodeProperties(int fd,nodeData* node){
 	return 0;
 }
 
-static char* getRealTimeStr(const char* fmt){
+static char* getRealTimeStr(){
 	static char timeStr[64];
 	static time_t befor;
 
@@ -965,15 +963,22 @@ static void pipeNodeConnect(){
 	read(fd[0],outPipe,len);
 
 	//finde pipe
-	nodePipe *in = NULL,*out = NULL;
+	nodePipe* in,*out;
+	nodeData *node_in = NULL;
+	uint16_t pipe_in = 0;
+	int outputMem = -1;
+
 	nodeData** itr;
 	LINEAR_LIST_FOREACH(activeNodeList,itr){
 		if(strcmp((*itr)->name,inNode) == 0){
+			node_in = *itr;
 			//find in pipe
 			int i;
 			for(i = 0;i < (*itr)->pipeCount;i++){
 				if(strcmp((*itr)->pipes[i].pipeName,inPipe) == 0){
+					pipe_in = i;
 					in = &(*itr)->pipes[i];
+					break;
 				}
 			}
 		}
@@ -983,19 +988,25 @@ static void pipeNodeConnect(){
 			int i;
 			for(i = 0;i < (*itr)->pipeCount;i++){
 				if(strcmp((*itr)->pipes[i].pipeName,outPipe) == 0){
+					outputMem = (*itr)->pipes[i].sID;
 					out = &(*itr)->pipes[i];
+					break;
 				}
 			}
 		}
 	}
 
 	int res = 0;
-	if(out == NULL || in == NULL){
+	if(in == NULL || out == NULL){
 		res = NODE_SYSTEM_NONE_SUCH_THAT;
-	}else if(in->type == NODE_OUT || out->type == NODE_IN){
+	}else if(in->type == NODE_OUT || out->type == NODE_IN || in->unit != out->unit || in->length != out->length){
 		res = NODE_SYSTEM_INVALID_ARGS;
 	}else{
+		write(node_in->fd[1],&pipe_in,sizeof(pipe_in));
+		write(node_in->fd[1],&outputMem,sizeof(outputMem));
 
+		if(!no_log)
+			fprintf(logFile,"%s:connect %s %s to %s %s\n",getRealTimeStr(),inNode,inPipe,outNode,outPipe);
 	}
 
 	//send result
