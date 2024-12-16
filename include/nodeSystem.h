@@ -7,6 +7,9 @@ int nodeSystemInit(uint8_t isNoLog);
 int nodeSystemAdd(char* path,char** args);
 void nodeSystemList(int* argc,char** args);
 int nodeSystemConnect(char* const inNode,char* const inPipe,char* const outNode,char* const outPipe);
+int nodeSystemDisConnect(char* const inNode,char* const inPipe);
+char** nodeSystemGetNodeNameList(int* counts);
+char** nodeSystemGetPipeNameList(char* nodeName,int* counts);
 
 static const uint32_t _node_init_head = 0x83DFC690;
 static const uint32_t _node_init_eof  = 0x85CBADEF;

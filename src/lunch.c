@@ -28,6 +28,7 @@ static void s_save(int* argc,char* argv[]);
 static void s_load(int* argc,char* argv[]);
 static void s_run(int* argc,char* argv[]);
 static void s_connect(int* argc,char* argv[]);
+static void s_disconnect(int* argc,char* argv[]);
 static void s_list(int* argc,char* argv[]);
 static void s_clear(int* argc,char* argv[]);
 
@@ -38,6 +39,7 @@ static const Command commandList[] = {
 	{"load",s_load,"load [-f loadPath] -- load node relation from loadPath"},
 	{"run" ,s_run ,"run [-f programPath] -- run programPath as node"},
 	{"connect",s_connect,"connect [inNodeName] [inPipeName] [outNodeName] [outPipeName] -- connect ports"},
+	{"disconnect",s_disconnect,"disconnect [inNodeName] [inPipeName]  -- disconnect ports"},
 	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"}
 };
@@ -177,11 +179,135 @@ char *command_generator(const char* str,int status){
 	return ((char *)NULL);
 }
 
-char **nodeSystem_completion(const char* str,int start,int end){
-	if(!start)
-		return rl_completion_matches(str,command_generator);
+char *node_generator(const char* str,int status){
+	static int list_index, len;
 
-	return NULL;
+	if(!status){
+		list_index = 0;
+		len = strlen (str);
+	}
+
+	//get list
+	int nodeCount;
+	char** names = nodeSystemGetNodeNameList(&nodeCount);
+
+	//check match
+	char* name;
+	char* cpStr = NULL;
+	while(list_index < nodeCount){
+		name = names[list_index];
+		list_index++;
+
+		if (strncmp(name, str, len) == 0){
+			cpStr = malloc(strlen(name)+1);
+
+			if(cpStr){
+				strcpy(cpStr,name);
+				break;
+			}
+		}
+	}
+
+	//free list
+	int i;
+	for(i = 0;i < nodeCount;i++){
+		free(names[i]);
+	}
+	free(names);
+
+	return cpStr;
+}
+
+static char* selectedNodeName;
+char *pipe_generator(const char* str,int status){
+	static int list_index, len;
+
+	if(!status){
+		list_index = 0;
+		len = strlen (str);
+	}
+
+	//get list
+	int pipeCount;
+	char** names = nodeSystemGetPipeNameList(selectedNodeName,&pipeCount);
+
+	//check match
+	char* name;
+	char* cpStr = NULL;
+	while(list_index < pipeCount){
+		name = names[list_index];
+		list_index++;
+
+		if (strncmp(name, str, len) == 0){
+			cpStr = malloc(strlen(name)+1);
+
+			if(cpStr){
+				strcpy(cpStr,name);
+				break;
+			}
+		}
+	}
+
+	//free list
+	int i;
+	for(i = 0;i < pipeCount;i++){
+		free(names[i]);
+	}
+	free(names);
+
+	return cpStr;
+}
+
+char **nodeSystem_completion(const char* str,int start,int end){
+	char** ret = NULL;
+
+	if(!start)
+		ret = rl_completion_matches(str,command_generator);
+	else{
+		//get line
+		char* cpyLine = malloc(strlen(rl_line_buffer)+1);
+		strcpy(cpyLine,rl_line_buffer);
+
+		//parse argments
+		char* args[10];
+		int count = parsArgment(cpyLine,sizeof(args)/sizeof(char*),args);
+		
+		//get cursol index
+		int i;
+		int cursoledArgment = -1;
+		for(i = 0;i < count;i++){
+			if((args[i] - cpyLine) == start){
+				cursoledArgment = i;
+				break;
+			}
+		}
+		if(cursoledArgment == -1)
+			cursoledArgment = count;
+
+		//check command
+		if(strcmp(args[0],"connect") == 0){
+		
+			if(cursoledArgment == 1 || cursoledArgment == 3){
+				ret = rl_completion_matches(str,node_generator);
+			}else if(cursoledArgment == 2 || cursoledArgment == 4){
+				selectedNodeName = args[cursoledArgment - 1];
+				ret = rl_completion_matches(str,pipe_generator);
+			}
+		}else if(strcmp(args[0],"disconnect") == 0){
+
+			if(cursoledArgment == 1)
+				ret = rl_completion_matches(str,node_generator);
+			else if(cursoledArgment == 2){
+				selectedNodeName = args[cursoledArgment - 1];
+				ret = rl_completion_matches(str,pipe_generator);
+			}
+		}
+
+		//free
+		free(cpyLine);
+	}
+
+	return ret;
 }
 
 
@@ -225,6 +351,19 @@ static void s_connect(int* argc,char* argv[]){
 		fprintf(stdout,"pipe connect failed:code %d\n",code);
 	else
 		fprintf(stdout,"pipe connect success\n");
+}
+
+static void s_disconnect(int* argc,char* argv[]){
+	if(*argc < 3){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	int code = nodeSystemDisConnect(argv[1],argv[2]);
+	if(code != 0)
+		fprintf(stdout,"pipe disconnect failed:code %d\n",code);
+	else
+		fprintf(stdout,"pipe disconnect success\n");
 }
 
 static void s_clear(int* argc,char* argv[]){
