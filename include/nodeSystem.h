@@ -8,6 +8,8 @@ int nodeSystemAdd(char* path,char** args);
 void nodeSystemList(int* argc,char** args);
 int nodeSystemConnect(char* const inNode,char* const inPipe,char* const outNode,char* const outPipe);
 int nodeSystemDisConnect(char* const inNode,char* const inPipe);
+int nodeSystemSetConst(char* const constNode,char* const constPipe,int valueCount,char** setValue);
+char* nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode);
 char** nodeSystemGetNodeNameList(int* counts);
 char** nodeSystemGetPipeNameList(char* nodeName,int* counts);
 
@@ -18,41 +20,38 @@ static const uint32_t _node_begin_eof  = 0x910AC8BB;
 
 typedef enum{
 	NODE_IN		= 0,
-	NODE_OUT	= 1
+	NODE_OUT	= 1,
+	NODE_CONST	= 2
 } NODE_PIPE_TYPE;
 
 static const char* NODE_PIPE_TYPE_STR[3] = {
 	"IN",
-	"OUT"
+	"OUT",
+	"CONST"
 };
 
 typedef enum{
-	NODE_STR		= 0,
 	NODE_CHAR		= 1,
 	NODE_BOOL		= 2,
 	NODE_INT_8		= 3,
 	NODE_INT_16		= 4,
-	NODE_INT_24		= 5,
 	NODE_INT_32		= 6,
 	NODE_UINT_8		= 7,
 	NODE_UINT_16	= 8,
-	NODE_UINT_24	= 9,
 	NODE_UINT_32	= 10,
 	NODE_FLOAT		= 11,
 	NODE_DOUBLE		= 12
 } NODE_DATA_UNIT;
 
 static const char* NODE_DATA_UNIT_STR[13] = {
-	"STR",
+	"",
 	"CHAR",
 	"BOOL",
 	"INT_8",
 	"INT_16",
-	"INT_24",
 	"INT_32",
 	"UINT_8",
 	"UINT_16",
-	"UINT_24",
 	"UINT_32",
 	"FLOAT",
 	"DOUBLE"
@@ -64,11 +63,9 @@ static const uint16_t NODE_DATA_UNIT_SIZE[13] = {
 	1,
 	sizeof(int8_t),
 	sizeof(int16_t),
-	3,
 	sizeof(int32_t),
 	sizeof(uint8_t),
 	sizeof(uint16_t),
-	3,
 	sizeof(uint32_t),
 	sizeof(float),
 	sizeof(double)

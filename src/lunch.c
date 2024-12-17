@@ -31,6 +31,7 @@ static void s_connect(int* argc,char* argv[]);
 static void s_disconnect(int* argc,char* argv[]);
 static void s_list(int* argc,char* argv[]);
 static void s_clear(int* argc,char* argv[]);
+static void s_const(int* argc,char* argv[]);
 
 static const Command commandList[] = {
 	{"help",s_help,"help -- display this text"},
@@ -41,7 +42,8 @@ static const Command commandList[] = {
 	{"connect",s_connect,"connect [inNodeName] [inPipeName] [outNodeName] [outPipeName] -- connect ports"},
 	{"disconnect",s_disconnect,"disconnect [inNodeName] [inPipeName]  -- disconnect ports"},
 	{"list" ,s_list,"list -- show node list"},
-	{"clear",s_clear,"clear -- clear display"}
+	{"clear",s_clear,"clear -- clear display"},
+	{"const",s_const,"[set/get] [constNodeName] [constPipeName] -- set/get const value"}
 };
 
 static uint8_t exit_flag = 0;
@@ -258,6 +260,33 @@ char *pipe_generator(const char* str,int status){
 	return cpStr;
 }
 
+char *set_get_generator(const char* str,int status){
+	static int list_index, len;
+	static const char* names[2] = {"set","get"};
+
+	if(!status){
+		list_index = 0;
+		len = strlen (str);
+	}
+
+	//check match
+	const char* name;
+	while(list_index < (sizeof(names)/sizeof(char*))){
+		name = names[list_index];
+		list_index++;
+
+		if (strncmp(name, str, len) == 0){
+			char* cpStr = malloc(strlen(name)+1);
+
+			if(cpStr){
+				strcpy(cpStr,name);
+				return cpStr;
+			}
+		}
+	}
+	return NULL;
+}
+
 char **nodeSystem_completion(const char* str,int start,int end){
 	char** ret = NULL;
 
@@ -298,6 +327,16 @@ char **nodeSystem_completion(const char* str,int start,int end){
 			if(cursoledArgment == 1)
 				ret = rl_completion_matches(str,node_generator);
 			else if(cursoledArgment == 2){
+				selectedNodeName = args[cursoledArgment - 1];
+				ret = rl_completion_matches(str,pipe_generator);
+			}
+		}else if(strcmp(args[0],"const") == 0){
+
+			if(cursoledArgment == 1)
+				ret = rl_completion_matches(str,set_get_generator);
+			if(cursoledArgment == 2)
+				ret = rl_completion_matches(str,node_generator);
+			else if(cursoledArgment == 3){
 				selectedNodeName = args[cursoledArgment - 1];
 				ret = rl_completion_matches(str,pipe_generator);
 			}
@@ -372,4 +411,44 @@ static void s_clear(int* argc,char* argv[]){
 
 static void s_list(int* argc,char* argv[]){
 	nodeSystemList(argc,argv);
+}
+
+static void s_const(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	if(strcmp(argv[1],"set") == 0){
+		if(*argc < 5){
+			fprintf(stdout,"too few argment\n");
+			return;
+		}
+
+		int code = nodeSystemSetConst(argv[2],argv[3],*argc - 5,&argv[4]);
+
+		if(code != 0)
+			fprintf(stdout,"set const failed:code %d\n",code);
+		else
+			fprintf(stdout,"set const success\n");
+
+	}else if(strcmp(argv[1],"get") == 0){
+		if(*argc < 4){
+			fprintf(stdout,"too few argment\n");
+			return;
+		}
+
+		int code;
+		char** value = nodeSystemGetConst(argv[2],argv[3],&code);
+
+		if(code != 0)
+			fprintf(stdout,"get const failed:code %d\n",code);
+		else
+			fprintf(stdout,"get const success:value %s\n",value);
+		
+		if(value != NULL)
+			free(value);
+	}else{
+
+	}
 }
