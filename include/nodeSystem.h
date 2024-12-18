@@ -9,7 +9,7 @@ void nodeSystemList(int* argc,char** args);
 int nodeSystemConnect(char* const inNode,char* const inPipe,char* const outNode,char* const outPipe);
 int nodeSystemDisConnect(char* const inNode,char* const inPipe);
 int nodeSystemSetConst(char* const constNode,char* const constPipe,int valueCount,char** setValue);
-char* nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode);
+char** nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode);
 char** nodeSystemGetNodeNameList(int* counts);
 char** nodeSystemGetPipeNameList(char* nodeName,int* counts);
 
@@ -35,10 +35,12 @@ typedef enum{
 	NODE_BOOL		= 2,
 	NODE_INT_8		= 3,
 	NODE_INT_16		= 4,
-	NODE_INT_32		= 6,
+	NODE_INT_32		= 5,
+	NODE_INT_64		= 6,
 	NODE_UINT_8		= 7,
 	NODE_UINT_16	= 8,
-	NODE_UINT_32	= 10,
+	NODE_UINT_32	= 9,
+	NODE_UINT_64	= 10,
 	NODE_FLOAT		= 11,
 	NODE_DOUBLE		= 12
 } NODE_DATA_UNIT;
@@ -50,9 +52,11 @@ static const char* NODE_DATA_UNIT_STR[13] = {
 	"INT_8",
 	"INT_16",
 	"INT_32",
+	"INT_64",
 	"UINT_8",
 	"UINT_16",
 	"UINT_32",
+	"UINT_64",
 	"FLOAT",
 	"DOUBLE"
 };
@@ -64,9 +68,11 @@ static const uint16_t NODE_DATA_UNIT_SIZE[13] = {
 	sizeof(int8_t),
 	sizeof(int16_t),
 	sizeof(int32_t),
+	sizeof(int64_t),
 	sizeof(uint8_t),
 	sizeof(uint16_t),
 	sizeof(uint32_t),
+	sizeof(uint64_t),
 	sizeof(float),
 	sizeof(double)
 };
@@ -95,4 +101,5 @@ typedef struct{
 #define NODE_SYSTEM_FAILED_INIT -3
 #define NODE_SYSTEM_NONE_SUCH_THAT -4
 #define NODE_SYSTEM_INVALID_ARGS -5
+#define NODE_SYSTEM_FAILED_MEMORY -6
 

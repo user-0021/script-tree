@@ -425,7 +425,7 @@ static void s_const(int* argc,char* argv[]){
 			return;
 		}
 
-		int code = nodeSystemSetConst(argv[2],argv[3],*argc - 5,&argv[4]);
+		int code = nodeSystemSetConst(argv[2],argv[3],*argc - 4,&argv[4]);
 
 		if(code != 0)
 			fprintf(stdout,"set const failed:code %d\n",code);
@@ -441,13 +441,18 @@ static void s_const(int* argc,char* argv[]){
 		int code;
 		char** value = nodeSystemGetConst(argv[2],argv[3],&code);
 
-		if(code != 0)
+		if(code < 0)
 			fprintf(stdout,"get const failed:code %d\n",code);
-		else
-			fprintf(stdout,"get const success:value %s\n",value);
-		
-		if(value != NULL)
+		else{
+			fprintf(stdout,"get const success:\n");
+			
+			int i;
+			for(i = 0;i < code;i++){
+				fprintf(stdout,"\t%s[%d]:%s\n",argv[3],i,value[i]);
+				free(value[i]);
+			}
 			free(value);
+		}
 	}else{
 
 	}

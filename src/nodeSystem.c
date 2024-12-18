@@ -455,8 +455,42 @@ int nodeSystemSetConst(char* const constNode,char* const constPipe,int valueCoun
 	return res;
 }
 
-char* nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode){
+char** nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode){
+	//set blocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
+	
+	//send message head
+	uint8_t head = PIPE_NODE_GET_CONST;
+	write(fd[1],&head,sizeof(head));
+	
+	//send const pipe
+	size_t len = strlen(constNode)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],constNode,len);
+	len = strlen(constPipe)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],constPipe,len);
 
+	//receive count
+	read(fd[0],retCode,sizeof(*retCode));
+	if(retCode < 0)
+		return NULL;
+
+	//malloc mem
+	char** values = malloc(sizeof(char*) * *retCode);
+
+	int i;
+	for(i = 0;i < *retCode;i++){
+		//receive value
+		read(fd[0],&len,sizeof(len));
+		values[i] = malloc(len);
+		read(fd[0],values[i],len);
+	}
+
+	//set nonblocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
+
+	return values;
 }
 
 char** nodeSystemGetNodeNameList(int* counts){
@@ -512,7 +546,6 @@ char** nodeSystemGetPipeNameList(char* nodeName,int* counts){
 
 	int i;
 	for(i = 0;i < pipeCounts;i++){
-		size_t len;
 		read(fd[0],&len,sizeof(len));
 		names[i] = malloc(len);
 		read(fd[0],names[i],len);
@@ -600,6 +633,14 @@ static void nodeSystemLoop(){
 			}
 			case PIPE_GET_PIPE_NAME_LIST:{
 				pipeNodeGetPipeNameList();
+				break;
+			}
+			case PIPE_NODE_SET_CONST:{
+				pipeNodeSetConst();
+				break;
+			}
+			case PIPE_NODE_GET_CONST:{
+				pipeNodeGetConst();
 				break;
 			}
 			default:
@@ -1263,8 +1304,14 @@ static void pipeNodeSetConst(){
 	write(fd[1],&res,sizeof(res));
 
 	if(res == 0){
-		void* tmpBuffer = malloc(NODE_DATA_UNIT_SIZE[pipe_const->unit]*pipe_const->length);
+		uint16_t size = NODE_DATA_UNIT_SIZE[pipe_const->unit];
+		void* tmpBuffer = malloc(size*pipe_const->length);
 		int flag = 1;
+
+		if(tmpBuffer == NULL){
+			res = NODE_SYSTEM_FAILED_MEMORY;
+			write(fd[1],&res,sizeof(res));
+		}
 
 		//read data
 		switch(pipe_const->unit){
@@ -1279,30 +1326,101 @@ static void pipeNodeSetConst(){
 				}
 			}
 			break;
-			case NODE_BOOL:
+			case NODE_BOOL:{
+				int i;
+				for(i = 0;i < count;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					int isTrue;
+					flag &= sscanf(str,"%d",&isTrue);
+					((uint8_t*)tmpBuffer)[i] = (isTrue != 0);
+					free(str);
+				}
+			}
 			break;
 			case NODE_INT_8:
 			case NODE_INT_16:
 			case NODE_INT_32:
+			case NODE_INT_64:{
+				int i;
+				for(i = 0;i < count;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],str,len);
+					long value;
+					flag &= sscanf(str,"%ld",&value);
+					memcpy(tmpBuffer+i*size,&value,size);
+					if(value < 0 && (((-1l)<<size*8)&~value))
+						flag = 0;
+					else if(value > 0 && ((-1l)<<size*8)&value)
+						flag = 0;
+					free(str);
+				}
+			}
 			break;
 			case NODE_UINT_8:
 			case NODE_UINT_16:
 			case NODE_UINT_32:
+			case NODE_UINT_64:{
+				int i;
+				for(i = 0;i < count;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					unsigned long value;
+					flag &= sscanf(str,"%lu",&value);
+					memcpy(tmpBuffer+i*size,&value,size);
+					if(((-1l)<<size*8)&value)
+						flag = 0;
+					free(str);
+				}
+			}
 			break;
-			case NODE_FLOAT:
+			case NODE_FLOAT:{
+				int i;
+				for(i = 0;i < count;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					flag &= sscanf(str,"%f",&((float*)tmpBuffer)[i]);
+					free(str);
+				}
+			}
 			break;
-			case NODE_DOUBLE:
+			case NODE_DOUBLE:{
+				int i;
+				for(i = 0;i < count;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					flag &= sscanf(str,"%lf",&((double*)tmpBuffer)[i]);
+					free(str);
+				}
+			}
 			break;
 			
 		}
 		
 
 		res = 0;
-		if(pipe_const == NULL){
-			res = NODE_SYSTEM_NONE_SUCH_THAT;
-		}else if(pipe_const->type != NODE_CONST || pipe_const->length != count){
+		if(flag == 0){
 			res = NODE_SYSTEM_INVALID_ARGS;
+		}else{
+			//cpy data
+			uint8_t* memory = shmat(pipe_const->sID,NULL,0);
+			if(memory  > 0){
+				memory[0]++;
+				memcpy(memory+1,tmpBuffer,size*pipe_const->length);
+				shmdt(memory);
+			}
+			else{
+				res = NODE_SYSTEM_FAILED_MEMORY;
+			}
 		}
+
+		//free
+		free(tmpBuffer);
 
 		//send result
 		write(fd[1],&res,sizeof(res));
@@ -1310,7 +1428,143 @@ static void pipeNodeSetConst(){
 }
 
 static void pipeNodeGetConst(){
+	char constNode[PATH_MAX];
+	char constPipe[PATH_MAX];
+	
+	//receive in pipe
+	size_t len;
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],constNode,len);
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],constPipe,len);
 
+	//finde pipe
+	nodePipe* pipe_const = NULL;
+
+	nodeData** itr;
+	LINEAR_LIST_FOREACH(activeNodeList,itr){
+		if(strcmp((*itr)->name,constNode) == 0){
+			//find in pipe
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if(strcmp((*itr)->pipes[i].pipeName,constPipe) == 0){
+					pipe_const = &(*itr)->pipes[i];
+					break;
+				}
+			}
+		}
+	}
+
+	int res = 0;
+	void* memory;
+	if(pipe_const == NULL){
+		res = NODE_SYSTEM_NONE_SUCH_THAT;
+	}else if(pipe_const->type != NODE_CONST){
+		res = NODE_SYSTEM_INVALID_ARGS;
+	}else if((memory = shmat(pipe_const->sID,NULL,0)) < 0){
+		res = NODE_SYSTEM_FAILED_MEMORY;
+	}else{			
+		res = pipe_const->length;
+	}
+
+	//send result
+	write(fd[1],&res,sizeof(res));
+
+
+	if(res > 0){
+		char value[1024];
+		uint16_t size = NODE_DATA_UNIT_SIZE[pipe_const->unit];
+
+		//read data
+		switch(pipe_const->unit){
+			case NODE_CHAR:{
+				int i;
+				for(i = 0;i < pipe_const->length;i++){
+					sprintf(value,"%c",((char*)memory)[i+1]);
+
+					len = strlen(value);
+					write(fd[1],&len,sizeof(len));
+					write(fd[1],value,len);
+				}
+			}
+			break;
+			case NODE_BOOL:{
+				int i;
+				for(i = 0;i < pipe_const->length;i++){
+					sprintf(value,"%d",(int)((char*)memory)[i+1]);
+
+					len = strlen(value);
+					write(fd[1],&len,sizeof(len));
+					write(fd[1],value,len);
+				}
+			}
+			break;
+			case NODE_INT_8:
+			case NODE_INT_16:
+			case NODE_INT_32:
+			case NODE_INT_64:{
+				int i;
+				for(i = 0;i < pipe_const->length;i++){
+					sprintf(value,"%d",(int)((char*)memory)[i+1]);
+
+					len = strlen(value);
+					write(fd[1],&len,sizeof(len));
+					write(fd[1],value,len);
+				}
+			}
+			break;
+			case NODE_UINT_8:
+			case NODE_UINT_16:
+			case NODE_UINT_32:
+			case NODE_UINT_64:{
+				int i;
+				for(i = 0;i < pipe_const->length;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					unsigned long value;
+					flag &= sscanf(str,"%lu",&value);
+					memcpy(tmpBuffer+i*size,&value,size);
+					if(((-1l)<<size*8)&value)
+						flag = 0;
+					free(str);
+				}
+			}
+			break;
+			case NODE_FLOAT:{
+				int i;
+				for(i = 0;i < pipe_const->length;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					flag &= sscanf(str,"%f",&((float*)tmpBuffer)[i]);
+					free(str);
+				}
+			}
+			break;
+			case NODE_DOUBLE:{
+				int i;
+				for(i = 0;i < pipe_const->length;i++){
+					read(fd[0],&len,sizeof(len));
+					char* str = malloc(len);
+					read(fd[0],constNode,len);
+					flag &= sscanf(str,"%lf",&((double*)tmpBuffer)[i]);
+					free(str);
+				}
+			}
+			break;	
+		}
+
+		shmdt(memory);
+	}
+
+	int i;
+	for(i = 0;i < ;i++){
+		//send value as str
+		read(fd[0],&len,sizeof(len));
+		values[i] = malloc(len);
+		read(fd[0],values[i],len);
+	}
 }
 
 static void pipeNodeGetNodeNameList(){
