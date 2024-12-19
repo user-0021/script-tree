@@ -1,4 +1,4 @@
-#include <linear_list.h>
+#include "linear_list.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -43,4 +43,24 @@ void* do_not_use_list_get_last(void* list,unsigned int size){
 	}
 
 	return ite;
+}
+
+void do_not_use_list_deleate(void* itr,unsigned int size){
+	void* next = *(void**)(itr + size);
+	void* prev = *(void**)(itr + size + sizeof(void*));
+
+	if(next == NULL && prev == NULL){
+		do_not_use_list_release(itr,size);
+		return;
+	}
+
+	if(next != NULL){
+		*(void**)(next + size + sizeof(void*)) = prev;
+	}
+
+	if(prev != NULL){
+		*(void**)(prev + size) = next;
+	}
+
+	free(itr);
 }

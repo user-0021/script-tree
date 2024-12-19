@@ -1,22 +1,23 @@
-RM = rm
-
 #build executable file
 build:out
 
 #make objs
 obj/main.o: src/main.c
-	gcc -o obj/main.o src/main.c  -Iinclude -I/usr/include/freetype2 -c
+	gcc -o obj/main.o src/main.c -I include -I library/linear_list -c
 
-obj/window-tree.o: src/window-tree.c
-	gcc -o obj/window-tree.o src/window-tree.c  -Iinclude -I/usr/include/freetype2 -c
+obj/nodeSystem.o: src/nodeSystem.c
+	gcc -o obj/nodeSystem.o src/nodeSystem.c -I include -I library/linear_list -c
 
-obj/linear_list.o: src/linear_list.c
-	gcc -o obj/linear_list.o src/linear_list.c  -Iinclude -I/usr/include/freetype2 -c
+obj/lunch.o: src/lunch.c
+	gcc -o obj/lunch.o src/lunch.c -I include -I library/linear_list -c
 
-out: obj/main.o obj/window-tree.o obj/linear_list.o 
-	gcc -o out obj/main.o obj/window-tree.o obj/linear_list.o -lglut -lGLU -lGL -lm `pkg-config --cflags --libs ftgl`
+obj/linear_list.o: library/linear_list/linear_list.c
+	gcc -o obj/linear_list.o library/linear_list/linear_list.c -I include -I library/linear_list -c
+
+out: obj/main.o obj/nodeSystem.o obj/lunch.o obj/linear_list.o
+	gcc -o out obj/main.o obj/nodeSystem.o obj/lunch.o obj/linear_list.o -lreadline
 
 all: clean out
 
 clean:
-	$(RM) out obj/main.o obj/window-tree.o obj/linear_list.o
+	$(RM) out obj/main.o obj/nodeSystem.o obj/lunch.o obj/linear_list.o
