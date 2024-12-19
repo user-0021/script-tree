@@ -534,7 +534,6 @@ int nodeSystemLoad(char* const path){
 		else
 			fprintf(stdout,"connect node success\n");
 	};
-	
 
 	//set const
 	while(1){
@@ -567,6 +566,7 @@ int nodeSystemLoad(char* const path){
 		void* mem = malloc(size);
 		fread(mem,size,1,loadFile);
 
+
 		//print name and path
 		nodeName[strlen(nodeName)-1] = '\0';
 		pipeName[strlen(pipeName)-1] = '\0';
@@ -591,7 +591,7 @@ int nodeSystemLoad(char* const path){
 
 		//get result
 		int code;
-		read(fd[0],&code,sizeof(code));
+		while(read(fd[0],&code,sizeof(code)) != sizeof(code));
 
 		free(mem);
 
@@ -1800,11 +1800,11 @@ static void pipeLoad(){
 	read(fd[0],&len,sizeof(len));
 	read(fd[0],pipeName,len);
 
+	fprintf(logFile,"load const pipe \nNode:%s\nPipe:%s\n",nodeName,pipeName);
 	//receive data
 	read(fd[0],&size,sizeof(size));
 	void* mem = malloc(size);
 	read(fd[0],mem,size);
-
 
 	//finde pipe
 	nodePipe* pipe_const = NULL;
@@ -1833,7 +1833,7 @@ static void pipeLoad(){
 			size = pipe_const->length;
 		
 		void* constMem;
-		if((constMem = shmat(pipe_const->sID,NULL,0)) < 0){
+		if((constMem = shmat(pipe_const->sID,NULL,0)) <= 0){
 			res = NODE_SYSTEM_FAILED_MEMORY;
 		}else{
 			((uint8_t*)constMem)[0]++;
@@ -1841,6 +1841,9 @@ static void pipeLoad(){
 			shmdt(constMem);
 		}
 	}
+
+	//free
+	free(mem);
 
 	//send result
 	write(fd[1],&res,sizeof(res));
