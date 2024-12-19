@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -36,8 +37,8 @@ static void s_const(int* argc,char* argv[]);
 static const Command commandList[] = {
 	{"help",s_help,"help -- display this text"},
 	{"quit",s_quit,"quit -- quit work space"},
-	{"save",s_save,"save [-f savePath] -- save node relation to savePath"},
-	{"load",s_load,"load [-f loadPath] -- load node relation from loadPath"},
+	{"save",s_save,"save [-f savePath] -- save node relation to saveFilePath.(ignore inactive node)"},
+	{"load",s_load,"load [-f loadPath] -- load node relation from loadFilePath"},
 	{"run" ,s_run ,"run [-f programPath] -- run programPath as node"},
 	{"connect",s_connect,"connect [inNodeName] [inPipeName] [outNodeName] [outPipeName] -- connect ports"},
 	{"disconnect",s_disconnect,"disconnect [inNodeName] [inPipeName]  -- disconnect ports"},
@@ -366,9 +367,32 @@ static void s_quit(int* argc,char* argv[]){
 }
 
 static void s_save(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	int code = nodeSystemSave(argv[1]);
+
+	if(code != 0)
+		fprintf(stdout,"save failed:code %d\n",code);
+	else
+		fprintf(stdout,"save success\n");
+
 }
 
 static void s_load(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	int code = nodeSystemLoad(argv[1]);
+
+	if(code != 0)
+		fprintf(stdout,"load failed:code %d\n",code);
+	else
+		fprintf(stdout,"load success\n");
 }
 
 static void s_run(int* argc,char* argv[]){

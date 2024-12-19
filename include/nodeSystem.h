@@ -9,6 +9,8 @@ void nodeSystemList(int* argc,char** args);
 int nodeSystemConnect(char* const inNode,char* const inPipe,char* const outNode,char* const outPipe);
 int nodeSystemDisConnect(char* const inNode,char* const inPipe);
 int nodeSystemSetConst(char* const constNode,char* const constPipe,int valueCount,char** setValue);
+int nodeSystemSave(char* const path);
+int nodeSystemLoad(char* const path);
 char** nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode);
 char** nodeSystemGetNodeNameList(int* counts);
 char** nodeSystemGetPipeNameList(char* nodeName,int* counts);
@@ -82,6 +84,7 @@ typedef struct{
 	uint16_t length;
 	NODE_PIPE_TYPE type;
 	NODE_DATA_UNIT unit;
+	char* connectNode;
 	char* connectPipe;
 	int sID;
 }nodePipe;

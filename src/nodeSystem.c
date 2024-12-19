@@ -34,6 +34,8 @@ static void pipeNodeConnect();
 static void pipeNodeDisConnect();
 static void pipeNodeSetConst();
 static void pipeNodeGetConst();
+static void pipeSave();
+static void pipeLoad();
 static void pipeNodeGetNodeNameList();
 static void pipeNodeGetPipeNameList();
 
@@ -46,7 +48,9 @@ enum _pipeHead{
 	PIPE_NODE_SET_CONST = 4,
 	PIPE_NODE_GET_CONST = 5,
 	PIPE_GET_NODE_NAME_LIST = 6,
-	PIPE_GET_PIPE_NAME_LIST = 7
+	PIPE_GET_PIPE_NAME_LIST = 7,
+	PIPE_SAVE = 8,
+	PIPE_LOAD = 9
 };
 
 //const value
@@ -225,7 +229,7 @@ void nodeSystemList(int* argc,char** args){
 	nodeData** itr;
 	//print active list
 	fprintf(stdout,
-				"--------------------active node list--------------------\n");
+					"--------------------active node list--------------------\n");
 
 	uint16_t activeNodeCount;
 	read(fd[0],&activeNodeCount,sizeof(activeNodeCount));
@@ -239,7 +243,7 @@ void nodeSystemList(int* argc,char** args){
 
 		//print head
 		fprintf(stdout,"\n"
-				"|------------------------------------------");
+					"|------------------------------------------");
 		
 		//receive node name
 		read(fd[0],&len,sizeof(len));
@@ -251,9 +255,9 @@ void nodeSystemList(int* argc,char** args){
 
 		//print node anme and path
 		fprintf(stdout,"\n"
-				"|\tname:%s\n"
-				"|\tpath:%s\n"
-				,name,filePath);
+					"|\tname:%s\n"
+					"|\tpath:%s\n"
+					,name,filePath);
 		
 		//receive pipe count
 		uint16_t pipeCount;
@@ -261,7 +265,8 @@ void nodeSystemList(int* argc,char** args){
 
 		int j;
 		for(j = 0;j < pipeCount;j++){
-			NODE_PIPE_TYPE type;
+			nodePipe data;
+			char nodeName[PATH_MAX];
 			char pipeName[PATH_MAX];
 
 			//receive pipe name
@@ -269,13 +274,40 @@ void nodeSystemList(int* argc,char** args){
 			read(fd[0],pipeName,len);
 
 			//receive node type
-			read(fd[0],&type,sizeof(type));
+			read(fd[0],&data.type,sizeof(data.type));
+			read(fd[0],&data.unit,sizeof(data.unit));
+			read(fd[0],&data.length,sizeof(data.length));
 
 			//print pipe name and type
 			fprintf(stdout,"|\n"
 					"|\tpipeName:%s\n"
 					"|\tpipeType:%s\n"
-					,pipeName,NODE_PIPE_TYPE_STR[type]);
+					"|\tpipeUnit:%s\n"
+					"|\tpipeLength:%d\n"
+					,pipeName,NODE_PIPE_TYPE_STR[data.type]
+					,NODE_DATA_UNIT_STR[data.unit],(int)data.length);
+			
+			//receive state
+			uint8_t isConnected = 0;
+			read(fd[0],&isConnected,sizeof(isConnected));
+
+			if(isConnected){
+				//recive connect node and pipe name
+				read(fd[0],&len,sizeof(len));
+				read(fd[0],nodeName,len);
+				read(fd[0],&len,sizeof(len));
+				read(fd[0],pipeName,len);
+
+				//print pipe name and type
+				fprintf(stdout,
+					"|\tConnected to %s of %s\n"
+					,pipeName,nodeName);
+			}else if(data.type == NODE_IN){
+				//print pipe name and type
+				fprintf(stdout,
+					"|\tnot Connected\n");
+			}
+
 		}
 
 		fprintf(stdout,
@@ -283,70 +315,7 @@ void nodeSystemList(int* argc,char** args){
 				"|------------------------------------------\n");
 	}
 
-	fprintf(stdout,
-				"--------------------------------------------------------\n");
-
-	//print inactive list
-	fprintf(stdout,
-				"-------------------inactive node list-------------------\n");
-
-
-	uint16_t inactiveNodeCount;
-	read(fd[0],&inactiveNodeCount,sizeof(inactiveNodeCount));
-	
-
-	for(i = 0;i < inactiveNodeCount;i++){
-		char name[PATH_MAX];
-		char filePath[PATH_MAX];
-		size_t len;
-
-		//print head
-		fprintf(stdout,"\n"
-				"|------------------------------------------");
-		
-		//receive node name
-		read(fd[0],&len,sizeof(len));
-		read(fd[0],name,len);
-
-		//receive node file
-		read(fd[0],&len,sizeof(len));
-		read(fd[0],filePath,len);
-
-		//print node anme and path
-		fprintf(stdout,"\n"
-				"|\tname:%s\n"
-				"|\tpath:%s\n"
-				,name,filePath);
-		
-		//receive pipe count
-		uint16_t pipeCount;
-		read(fd[0],&pipeCount,sizeof(pipeCount));
-
-		int j;
-		for(j = 0;j < pipeCount;j++){
-			NODE_PIPE_TYPE type;
-			char pipeName[PATH_MAX];
-
-			//receive pipe name
-			read(fd[0],&len,sizeof(len));
-			read(fd[0],pipeName,len);
-
-			//receive node type
-			read(fd[0],&type,sizeof(type));
-
-			//print pipe name and type
-			fprintf(stdout,"|\n"
-					"|\tpipeName:%s\n"
-					"|\tpipeType:%s\n"
-					,pipeName,NODE_PIPE_TYPE_STR[type]);
-		}
-
-		fprintf(stdout,
-				"|\n"
-				"|------------------------------------------\n");
-	}
-
-	fprintf(stdout,
+	fprintf(stdout,"\n"
 				"--------------------------------------------------------\n");
 
 	//set nonblocking
@@ -453,6 +422,191 @@ int nodeSystemSetConst(char* const constNode,char* const constPipe,int valueCoun
 	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
 
 	return res;
+}
+
+int nodeSystemSave(char* const path){
+	//set blocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
+	
+	//send message head
+	uint8_t head = PIPE_SAVE;
+	write(fd[1],&head,sizeof(head));
+	
+	//send const pipe
+	size_t len = strlen(path)+1;
+	write(fd[1],&len,sizeof(len));
+	write(fd[1],path,len);
+
+	//get result
+	int res = 0;
+	read(fd[0],&res,sizeof(res));
+
+	//set nonblocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
+
+	return res;
+}
+
+int nodeSystemLoad(char* const path){
+	//set blocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) & (~O_NONBLOCK));
+	
+	//open laod file
+	FILE* loadFile = fopen(path,"r");
+	if(loadFile == NULL){
+		fprintf(stdout,"Failed fopen(%s) : %s\n",path,strerror(errno));
+		return NODE_SYSTEM_NONE_SUCH_THAT;
+	}
+
+	//run nodes
+	while(1){
+		//get node path
+		char nodePath[4096];
+		if(fgets(nodePath,sizeof(nodePath),loadFile) != nodePath || nodePath[0] == '\n'){
+			break;
+		}
+
+		//get node name
+		char nodeName[4096];
+		if(fgets(nodeName,sizeof(nodeName),loadFile) != nodeName || nodeName[0] == '\n'){
+			fprintf(stdout,"failed load node name of %s\n",nodePath);
+			fclose(loadFile);
+			return NODE_SYSTEM_INVALID_ARGS;
+		}
+
+		//print name and path
+		nodePath[strlen(nodePath)-1] = '\0';
+		nodeName[strlen(nodeName)-1] = '\0';
+		fprintf(stdout,"load node \nname:%s\npath:%s\n",nodeName,nodePath);
+		
+		char* args[4] = {nodePath,"-name",nodeName,NULL};
+		int code = nodeSystemAdd(nodePath,args);
+		
+		if(code  != 0)
+			fprintf(stdout,"add node failed:code %d\n",code);
+		else
+			fprintf(stdout,"add node success\n");
+	};
+
+	//connect pipe
+	while(1){
+		//get node path
+		char nodeName[4096];
+		if(fgets(nodeName,sizeof(nodeName),loadFile) != nodeName || nodeName[0] == '\n'){
+			break;
+		}
+
+		//get node name
+		char pipeName[4096];
+		if(fgets(pipeName,sizeof(pipeName),loadFile) != pipeName || pipeName[0] == '\n'){
+			fprintf(stdout,"failed load pipe name of %s\n",nodeName);
+			fclose(loadFile);
+			return NODE_SYSTEM_INVALID_ARGS;
+		}
+
+		//get connect node name
+		char connectNodeName[4096];
+		if(fgets(connectNodeName,sizeof(connectNodeName),loadFile) != connectNodeName || connectNodeName[0] == '\n'){
+			fprintf(stdout,"failed load connect node name\n");
+			fclose(loadFile);
+			return NODE_SYSTEM_INVALID_ARGS;
+		}
+
+		//get connect pipe name
+		char connectPipeName[4096];
+		if(fgets(connectPipeName,sizeof(connectPipeName),loadFile) != connectPipeName || connectPipeName[0] == '\n'){
+			fprintf(stdout,"failed load pipe name of %s\n",connectNodeName);
+			fclose(loadFile);
+			return NODE_SYSTEM_INVALID_ARGS;
+		}
+
+		//print name and path
+		nodeName[strlen(nodeName)-1] = '\0';
+		pipeName[strlen(pipeName)-1] = '\0';
+		connectNodeName[strlen(connectNodeName)-1] = '\0';
+		connectPipeName[strlen(connectPipeName)-1] = '\0';
+		fprintf(stdout,"load pipe connection \ninNode:%s\ninPipe:%s\noutNode:%s\noutPipe:%s\n",nodeName,pipeName,connectNodeName,connectPipeName);
+		
+		int code = nodeSystemConnect(nodeName,pipeName,connectNodeName,connectPipeName);
+		
+		if(code  != 0)
+			fprintf(stdout,"connect node failed:code %d\n",code);
+		else
+			fprintf(stdout,"connect node success\n");
+	};
+	
+
+	//set const
+	while(1){
+		//get node path
+		char nodeName[4096];
+		if(fgets(nodeName,sizeof(nodeName),loadFile) != nodeName || nodeName[0] == '\n'){
+			break;
+		}
+
+		//get node name
+		char pipeName[4096];
+		if(fgets(pipeName,sizeof(pipeName),loadFile) != pipeName || pipeName[0] == '\n'){
+			fprintf(stdout,"failed load pipe name of %s\n",nodeName);
+			fclose(loadFile);
+			return NODE_SYSTEM_INVALID_ARGS;
+		}
+
+		//get data length
+		char dataLength[4096];
+		if(fgets(dataLength,sizeof(dataLength),loadFile) != dataLength || dataLength[0] == '\n'){
+			fprintf(stdout,"failed load data length\n");
+			fclose(loadFile);
+			return NODE_SYSTEM_INVALID_ARGS;
+		}
+
+		int size;
+		sscanf(dataLength,"%d",&size);
+
+		//get connect pipe name
+		void* mem = malloc(size);
+		fread(mem,size,1,loadFile);
+
+		//print name and path
+		nodeName[strlen(nodeName)-1] = '\0';
+		pipeName[strlen(pipeName)-1] = '\0';
+
+		fprintf(stdout,"load const pipe \nNode:%s\nPipe:%s\n",nodeName,pipeName);
+	
+		//send message head
+		uint8_t head = PIPE_LOAD;
+		write(fd[1],&head,sizeof(head));
+
+		//send node name and piepe name
+		size_t len = strlen(nodeName)+1;
+		write(fd[1],&len,sizeof(len));
+		write(fd[1],nodeName,len);
+		len = strlen(pipeName)+1;
+		write(fd[1],&len,sizeof(len));
+		write(fd[1],pipeName,len);
+
+		//send data
+		write(fd[1],&size,sizeof(size));
+		write(fd[1],mem,size);
+
+		//get result
+		int code;
+		read(fd[0],&code,sizeof(code));
+
+		free(mem);
+
+		if(code  != 0)
+			fprintf(stdout,"set const failed:code %d\n",code);
+		else
+			fprintf(stdout,"set const success\n");
+	};
+
+	fclose(loadFile);
+
+	//set nonblocking
+	fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
+
+	return 0;
 }
 
 char** nodeSystemGetConst(char* const constNode,char* const constPipe,int* retCode){
@@ -641,6 +795,14 @@ static void nodeSystemLoop(){
 			}
 			case PIPE_NODE_GET_CONST:{
 				pipeNodeGetConst();
+				break;
+			}
+			case PIPE_SAVE:{
+				pipeSave();
+				break;
+			}
+			case PIPE_LOAD:{
+				pipeLoad();
 				break;
 			}
 			default:
@@ -1094,49 +1256,28 @@ static void pipeNodeList(){
 		
 		int i;
 		for(i = 0;i < (*itr)->pipeCount;i++){
-			//semd pipe name
+			//semd pipe option
 			len = strlen((*itr)->pipes[i].pipeName)+1;
 			write(fd[1],&len,sizeof(len));
 			write(fd[1],(*itr)->pipes[i].pipeName,len);
-			
-			//send pipe type
-			write(fd[1],&(*itr)->pipes[i].type,sizeof(NODE_PIPE_TYPE));
-		}
-	}
+			write(fd[1],&(*itr)->pipes[i].type,sizeof((*itr)->pipes[i].type));
+			write(fd[1],&(*itr)->pipes[i].unit,sizeof((*itr)->pipes[i].unit));
+			write(fd[1],&(*itr)->pipes[i].length,sizeof((*itr)->pipes[i].length));
 
+			//send state
+			uint8_t isConnected = (*itr)->pipes[i].connectPipe != NULL;
+			write(fd[1],&isConnected,sizeof(isConnected));
 
-	//get node count
-	nodeCount = 0;
-	LINEAR_LIST_FOREACH(inactiveNodeList,itr){
-		nodeCount++;
-	}
+			if(isConnected){
+				//send connect node and pipe
+				len = strlen((*itr)->pipes[i].connectNode)+1;
+				write(fd[1],&len,sizeof(len));
+				write(fd[1],(*itr)->pipes[i].connectNode,len);
+				len = strlen((*itr)->pipes[i].connectPipe)+1;
+				write(fd[1],&len,sizeof(len));
+				write(fd[1],(*itr)->pipes[i].connectPipe,len);
 
-	//send node count
-	write(fd[1],&nodeCount,sizeof(nodeCount));
-	
-	LINEAR_LIST_FOREACH(inactiveNodeList,itr){
-		//send node name
-		size_t len = strlen((*itr)->name)+1;
-		write(fd[1],&len,sizeof(len));
-		write(fd[1],(*itr)->name,len);
-		
-		//send file path
-		len = strlen((*itr)->filePath)+1;
-		write(fd[1],&len,sizeof(len));
-		write(fd[1],(*itr)->filePath,len);
-
-		//send pipe count
-		write(fd[1],&(*itr)->pipeCount,sizeof((*itr)->pipeCount));
-		
-		int i;
-		for(i = 0;i < (*itr)->pipeCount;i++){
-			//semd pipe name
-			len = strlen((*itr)->pipes[i].pipeName)+1;
-			write(fd[1],&len,sizeof(len));
-			write(fd[1],(*itr)->pipes[i].pipeName,len);
-			
-			//send pipe type
-			write(fd[1],&(*itr)->pipes[i].type,sizeof(NODE_PIPE_TYPE));
+			}
 		}
 	}
 }
@@ -1162,7 +1303,7 @@ static void pipeNodeConnect(){
 
 	//finde pipe
 	nodePipe* in = NULL,*out = NULL;
-	nodeData *node_in = NULL;
+	nodeData *node_in = NULL,*node_out = NULL;
 	uint16_t pipe_in = 0;
 	int outputMem = -1;
 
@@ -1182,6 +1323,7 @@ static void pipeNodeConnect(){
 		}
 
 		if(strcmp((*itr)->name,outNode) == 0){
+			node_out = *itr;
 			//find out pipe
 			int i;
 			for(i = 0;i < (*itr)->pipeCount;i++){
@@ -1202,6 +1344,8 @@ static void pipeNodeConnect(){
 	}else{
 		write(node_in->fd[1],&pipe_in,sizeof(pipe_in));
 		write(node_in->fd[1],&outputMem,sizeof(outputMem));
+		in->connectNode = node_out->name;
+		in->connectPipe = out->pipeName;
 
 		if(!no_log)
 			fprintf(logFile,"%s:connect %s %s to %s %s\n",getRealTimeStr(),inNode,inPipe,outNode,outPipe);
@@ -1252,6 +1396,8 @@ static void pipeNodeDisConnect(){
 	}else{
 		write(node_in->fd[1],&pipe_in,sizeof(pipe_in));
 		write(node_in->fd[1],&outputMem,sizeof(outputMem));
+		in->connectNode = NULL;
+		in->connectPipe = NULL;
 
 		if(!no_log)
 			fprintf(logFile,"%s:disconnect %s %s\n",getRealTimeStr(),inNode,inPipe);
@@ -1482,7 +1628,7 @@ static void pipeNodeGetConst(){
 				for(i = 0;i < pipe_const->length;i++){
 					sprintf(value,"%c",((char*)memory)[i+1]);
 
-					len = strlen(value);
+					len = strlen(value)+1;
 					write(fd[1],&len,sizeof(len));
 					write(fd[1],value,len);
 				}
@@ -1493,7 +1639,7 @@ static void pipeNodeGetConst(){
 				for(i = 0;i < pipe_const->length;i++){
 					sprintf(value,"%d",(int)((char*)memory)[i+1]);
 
-					len = strlen(value);
+					len = strlen(value)+1;
 					write(fd[1],&len,sizeof(len));
 					write(fd[1],value,len);
 				}
@@ -1505,9 +1651,19 @@ static void pipeNodeGetConst(){
 			case NODE_INT_64:{
 				int i;
 				for(i = 0;i < pipe_const->length;i++){
-					sprintf(value,"%d",(int)((char*)memory)[i+1]);
+					long num = 0;
+					memcpy(&num,memory + 1 + i*size,size);
 
-					len = strlen(value);
+					//if num is neg fill head to 0xFF 
+					int j;
+					uint8_t isNeg = (num >> (size*8 - 1))&1;
+					for(j = sizeof(long);j > size;j--){
+						((uint8_t*)&num)[j-1] = 0xFF * isNeg;
+					}
+
+					sprintf(value,"%ld",num);
+
+					len = strlen(value)+1;
 					write(fd[1],&len,sizeof(len));
 					write(fd[1],value,len);
 				}
@@ -1519,37 +1675,36 @@ static void pipeNodeGetConst(){
 			case NODE_UINT_64:{
 				int i;
 				for(i = 0;i < pipe_const->length;i++){
-					read(fd[0],&len,sizeof(len));
-					char* str = malloc(len);
-					read(fd[0],constNode,len);
-					unsigned long value;
-					flag &= sscanf(str,"%lu",&value);
-					memcpy(tmpBuffer+i*size,&value,size);
-					if(((-1l)<<size*8)&value)
-						flag = 0;
-					free(str);
+					unsigned long num = 0;
+					memcpy(&num,memory + 1 + i*size,size);
+
+					sprintf(value,"%lu",num);
+
+					len = strlen(value)+1;
+					write(fd[1],&len,sizeof(len));
+					write(fd[1],value,len);
 				}
 			}
 			break;
 			case NODE_FLOAT:{
 				int i;
 				for(i = 0;i < pipe_const->length;i++){
-					read(fd[0],&len,sizeof(len));
-					char* str = malloc(len);
-					read(fd[0],constNode,len);
-					flag &= sscanf(str,"%f",&((float*)tmpBuffer)[i]);
-					free(str);
+					sprintf(value,"%f",((float*)(memory + 1))[i]);
+
+					len = strlen(value)+1;
+					write(fd[1],&len,sizeof(len));
+					write(fd[1],value,len);
 				}
 			}
 			break;
 			case NODE_DOUBLE:{
 				int i;
 				for(i = 0;i < pipe_const->length;i++){
-					read(fd[0],&len,sizeof(len));
-					char* str = malloc(len);
-					read(fd[0],constNode,len);
-					flag &= sscanf(str,"%lf",&((double*)tmpBuffer)[i]);
-					free(str);
+					sprintf(value,"%lf",((double*)(memory + 1))[i]);
+
+					len = strlen(value)+1;
+					write(fd[1],&len,sizeof(len));
+					write(fd[1],value,len);
 				}
 			}
 			break;	
@@ -1557,14 +1712,138 @@ static void pipeNodeGetConst(){
 
 		shmdt(memory);
 	}
+}
 
-	int i;
-	for(i = 0;i < ;i++){
-		//send value as str
-		read(fd[0],&len,sizeof(len));
-		values[i] = malloc(len);
-		read(fd[0],values[i],len);
+static void pipeSave(){
+	char saveFilePath[PATH_MAX];
+	
+	//receive in pipe
+	size_t len;
+	FILE* saveFile;
+	nodeData ** itr;
+	int res = 0;
+
+	//receive file path
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],saveFilePath,len);
+
+	saveFile = fopen(saveFilePath,"w");
+	if(saveFile != NULL){
+		LINEAR_LIST_FOREACH(activeNodeList,itr){
+			//save filepath and name
+			fprintf(saveFile,"%s\n",(*itr)->filePath);
+			fprintf(saveFile,"%s\n",(*itr)->name);
+		}
+
+		//insert space
+		fprintf(saveFile,"\n");
+
+		LINEAR_LIST_FOREACH(activeNodeList,itr){
+			//save pipe relation
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if((*itr)->pipes[i].type == NODE_IN &&(*itr)->pipes[i].connectPipe != NULL){
+					fprintf(saveFile,"%s\n",(*itr)->name);
+					fprintf(saveFile,"%s\n",(*itr)->pipes[i].pipeName);
+					fprintf(saveFile,"%s\n",(*itr)->pipes[i].connectNode);
+					fprintf(saveFile,"%s\n",(*itr)->pipes[i].connectPipe);
+				}
+			}
+		}
+
+		//insert space
+		fprintf(saveFile,"\n");
+
+		LINEAR_LIST_FOREACH(activeNodeList,itr){
+			//save const data
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if((*itr)->pipes[i].type == NODE_CONST){
+					fprintf(saveFile,"%s\n",(*itr)->name);
+					fprintf(saveFile,"%s\n",(*itr)->pipes[i].pipeName);
+					
+					void* mem;
+					if((mem = shmat((*itr)->pipes[i].sID,NULL,SHM_RDONLY)) > 0){
+						fprintf(saveFile,"%d\n",(*itr)->pipes[i].length*NODE_DATA_UNIT_SIZE[(*itr)->pipes[i].unit]);
+						fwrite(mem+1,NODE_DATA_UNIT_SIZE[(*itr)->pipes[i].unit],(*itr)->pipes[i].length,saveFile);
+						shmdt(mem);
+					}else{
+						res = NODE_SYSTEM_FAILED_MEMORY;
+						if(!no_log)
+							fprintf(logFile,"%s:failed shmat(%s of %s) %s\n",getRealTimeStr(),(*itr)->pipes[i].pipeName,(*itr)->name,strerror(errno));
+					}
+				}
+			}
+		}
+		
+		//insert space
+		fprintf(saveFile,"\n");
+		fclose(saveFile);
+	}else{
+		res = NODE_SYSTEM_NONE_SUCH_THAT;
 	}
+
+
+	//send result
+	write(fd[1],&res,sizeof(res));
+}
+
+static void pipeLoad(){
+	char nodeName[PATH_MAX];
+	char pipeName[PATH_MAX];
+	int size;
+
+	//recive node name pipe name
+	size_t len;
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],nodeName,len);
+	read(fd[0],&len,sizeof(len));
+	read(fd[0],pipeName,len);
+
+	//receive data
+	read(fd[0],&size,sizeof(size));
+	void* mem = malloc(size);
+	read(fd[0],mem,size);
+
+
+	//finde pipe
+	nodePipe* pipe_const = NULL;
+
+	nodeData** itr;
+	LINEAR_LIST_FOREACH(activeNodeList,itr){
+		if(strcmp((*itr)->name,nodeName) == 0){
+			//find in pipe
+			int i;
+			for(i = 0;i < (*itr)->pipeCount;i++){
+				if(strcmp((*itr)->pipes[i].pipeName,pipeName) == 0){
+					pipe_const = &(*itr)->pipes[i];
+					break;
+				}
+			}
+		}
+	}
+
+	int res = 0;
+
+	if(pipe_const == NULL){
+		res = NODE_SYSTEM_NONE_SUCH_THAT;
+	}else{
+		//check size
+		if(size > pipe_const->length)
+			size = pipe_const->length;
+		
+		void* constMem;
+		if((constMem = shmat(pipe_const->sID,NULL,0)) < 0){
+			res = NODE_SYSTEM_FAILED_MEMORY;
+		}else{
+			((uint8_t*)constMem)[0]++;
+			memcpy(constMem+1,mem,size);
+			shmdt(constMem);
+		}
+	}
+
+	//send result
+	write(fd[1],&res,sizeof(res));
 }
 
 static void pipeNodeGetNodeNameList(){
