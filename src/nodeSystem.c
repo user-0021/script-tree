@@ -150,8 +150,9 @@ int nodeSystemInit(uint8_t isNoLog){
 
 		//loop
 		int parent = getppid();
-		while(kill(parent,0) == 0)
+		while(kill(parent,0) == 0){
 			nodeSystemLoop();
+		}
 
 		//remove mem
 		nodeData** itr;
@@ -810,12 +811,15 @@ static void nodeSystemLoop(){
 
 		//set nonblocking
 		fcntl(fd[0] ,F_SETFL,fcntl(fd[0] ,F_GETFL) | O_NONBLOCK);
+
+		if(!no_log)
+			fflush(logFile);
+	}else{
+		//timer
+		static const struct timespec req = {.tv_sec = 0,.tv_nsec = 1000*1000};
+		nanosleep(&req,NULL);
 	}
-
-	if(!no_log)
-		fflush(logFile);
 }
-
 static int popenRWasNonBlock(const char const * command,int* fd){
 
 	int pipeTx[2];
@@ -1466,7 +1470,7 @@ static void pipeNodeSetConst(){
 				for(i = 0;i < count;i++){
 					read(fd[0],&len,sizeof(len));
 					char* str = malloc(len);
-					read(fd[0],constNode,len);
+					read(fd[0],str,len);
 					flag &= sscanf(str,"%c",&((char*)tmpBuffer)[i]);
 					free(str);
 				}
@@ -1477,7 +1481,7 @@ static void pipeNodeSetConst(){
 				for(i = 0;i < count;i++){
 					read(fd[0],&len,sizeof(len));
 					char* str = malloc(len);
-					read(fd[0],constNode,len);
+					read(fd[0],str,len);
 					int isTrue;
 					flag &= sscanf(str,"%d",&isTrue);
 					((uint8_t*)tmpBuffer)[i] = (isTrue != 0);
@@ -1513,7 +1517,7 @@ static void pipeNodeSetConst(){
 				for(i = 0;i < count;i++){
 					read(fd[0],&len,sizeof(len));
 					char* str = malloc(len);
-					read(fd[0],constNode,len);
+					read(fd[0],str,len);
 					unsigned long value;
 					flag &= sscanf(str,"%lu",&value);
 					memcpy(tmpBuffer+i*size,&value,size);
@@ -1528,7 +1532,7 @@ static void pipeNodeSetConst(){
 				for(i = 0;i < count;i++){
 					read(fd[0],&len,sizeof(len));
 					char* str = malloc(len);
-					read(fd[0],constNode,len);
+					read(fd[0],str,len);
 					flag &= sscanf(str,"%f",&((float*)tmpBuffer)[i]);
 					free(str);
 				}
@@ -1539,7 +1543,7 @@ static void pipeNodeSetConst(){
 				for(i = 0;i < count;i++){
 					read(fd[0],&len,sizeof(len));
 					char* str = malloc(len);
-					read(fd[0],constNode,len);
+					read(fd[0],str,len);
 					flag &= sscanf(str,"%lf",&((double*)tmpBuffer)[i]);
 					free(str);
 				}
@@ -1547,7 +1551,6 @@ static void pipeNodeSetConst(){
 			break;
 			
 		}
-		
 
 		res = 0;
 		if(flag == 0){
