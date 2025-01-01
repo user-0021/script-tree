@@ -889,6 +889,11 @@ static int nodeBegin(nodeData* node){
 		return -2;
 	}
 
+	//write name
+	uint16_t len = strlen(node->name)+1;
+	write(node->fd[1],&len,sizeof(len));
+	write(node->fd[1],node->name,len);
+
 	//give pipe
 	int i;
 	for(i = 0;i < node->pipeCount;i++){
