@@ -33,6 +33,7 @@ static void s_disconnect(int* argc,char* argv[]);
 static void s_list(int* argc,char* argv[]);
 static void s_clear(int* argc,char* argv[]);
 static void s_const(int* argc,char* argv[]);
+static void s_timer(int* argc,char* argv[]);
 
 static const Command commandList[] = {
 	{"help",s_help,"help -- display this text"},
@@ -44,7 +45,8 @@ static const Command commandList[] = {
 	{"disconnect",s_disconnect,"disconnect [inNodeName] [inPipeName]  -- disconnect ports"},
 	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"},
-	{"const",s_const,"[set/get] [constNodeName] [constPipeName] -- set/get const value"}
+	{"const",s_const,"const [set/get] [constNodeName] [constPipeName] -- set/get const value"},
+	{"timer",s_timer,"timer [run/stop] -- run/stop timer"}
 };
 
 static uint8_t exit_flag = 0;
@@ -396,7 +398,7 @@ static void s_load(int* argc,char* argv[]){
 }
 
 static void s_run(int* argc,char* argv[]){
-	int code = nodeSystemAdd(argv[1],&argv[1]);
+	int code = nodeSystemAddNode(argv[1],&argv[1]);
 	if(code  != 0)
 		fprintf(stdout,"add node failed:code %d\n",code);
 	else
@@ -434,7 +436,7 @@ static void s_clear(int* argc,char* argv[]){
 }
 
 static void s_list(int* argc,char* argv[]){
-	nodeSystemList(argc,argv);
+	nodeSystemPrintNodeList(argc,argv);
 }
 
 static void s_const(int* argc,char* argv[]){
@@ -478,6 +480,19 @@ static void s_const(int* argc,char* argv[]){
 			free(value);
 		}
 	}else{
+		fprintf(stdout,"%s is invalid option\n",argv[1]);
+	}
+}
 
+static void s_timer(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	if(strcmp(argv[1],"run") == 0){
+	}else if(strcmp(argv[1],"stop") == 0){
+	}else{
+		fprintf(stdout,"%s is invalid option\n",argv[1]);
 	}
 }

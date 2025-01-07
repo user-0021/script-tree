@@ -1,9 +1,9 @@
 #Project info
 CC = gcc
-OBJ_FLAG =
+OBJ_FLAG = -D NODE_SYSTEM_HOST
 CFLAG = -lreadline
-SOURCE_DIR = src library/linear_list 
-INCLUDE_DIR = include library/linear_list 
+SOURCE_DIR = src library/linear_list library/nodeSystem
+INCLUDE_DIR = include library/linear_list library/nodeSystem
 OBJ_DIR = obj
 
 
