@@ -1,3 +1,6 @@
 [submodule "library/linear_list"]
 	path = library/linear_list
 	url = https://github.com/user-0021/linear_list.git
+[submodule "library/nodeSystem"]
+	path = library/nodeSystem
+	url = https://github.com/user-0021/nodeSystem
