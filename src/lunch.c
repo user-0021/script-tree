@@ -22,6 +22,9 @@ void process_input(char* str);
 char *command_generator(const char* str,int state);
 char **nodeSystem_completion(const char* str,int start,int end);
 
+//signale
+void sigint_handle(int sig);
+
 //command callback
 static void s_help(int* argc,char* argv[]);
 static void s_quit(int* argc,char* argv[]);
@@ -33,6 +36,7 @@ static void s_disconnect(int* argc,char* argv[]);
 static void s_list(int* argc,char* argv[]);
 static void s_clear(int* argc,char* argv[]);
 static void s_const(int* argc,char* argv[]);
+static void s_timer(int* argc,char* argv[]);
 
 static const Command commandList[] = {
 	{"help",s_help,"help -- display this text"},
@@ -44,9 +48,14 @@ static const Command commandList[] = {
 	{"disconnect",s_disconnect,"disconnect [inNodeName] [inPipeName]  -- disconnect ports"},
 	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"},
-	{"const",s_const,"[set/get] [constNodeName] [constPipeName] -- set/get const value"}
+	{"const",s_const,"const [set/get] [constNodeName] [constPipeName] -- set/get const value"},
+	{"timer",s_timer,"timer [run/stop] -- run/stop timer"}
 };
 
+static const char* generatePatternSetGet[] = {"set","get",NULL};
+static const char* generatePatternTimer[] = {"set","get","run","stop",NULL};
+
+static const char** userGeneraterPattern = NULL;
 static uint8_t exit_flag = 0;
 
 void lunch(int* argc,char* argv[]){
@@ -65,6 +74,9 @@ void lunch(int* argc,char* argv[]){
 	if(nodeSystemInit(no_log) < 0){
 		exit(1);
 	}
+
+	//set signal
+	signal(SIGINT,sigint_handle);
 
 	//init terminal
 	rl_readline_name = "NodeSystem";
@@ -261,9 +273,8 @@ char *pipe_generator(const char* str,int status){
 	return cpStr;
 }
 
-char *set_get_generator(const char* str,int status){
+char *user_generator(const char* str,int status){
 	static int list_index, len;
-	static const char* names[2] = {"set","get"};
 
 	if(!status){
 		list_index = 0;
@@ -271,16 +282,17 @@ char *set_get_generator(const char* str,int status){
 	}
 
 	//check match
-	const char* name;
-	while(list_index < (sizeof(names)/sizeof(char*))){
-		name = names[list_index];
+	const char* pattern;
+	
+	while(userGeneraterPattern[list_index] != NULL){
+		pattern = userGeneraterPattern[list_index];
 		list_index++;
 
-		if (strncmp(name, str, len) == 0){
-			char* cpStr = malloc(strlen(name)+1);
+		if (strncmp(pattern, str, len) == 0){
+			char* cpStr = malloc(strlen(pattern)+1);
 
 			if(cpStr){
-				strcpy(cpStr,name);
+				strcpy(cpStr,pattern);
 				return cpStr;
 			}
 		}
@@ -333,13 +345,21 @@ char **nodeSystem_completion(const char* str,int start,int end){
 			}
 		}else if(strcmp(args[0],"const") == 0){
 
-			if(cursoledArgment == 1)
-				ret = rl_completion_matches(str,set_get_generator);
+			if(cursoledArgment == 1){
+				userGeneraterPattern = (const char**)generatePatternSetGet;
+				ret = rl_completion_matches(str,user_generator);
+			}
 			if(cursoledArgment == 2)
 				ret = rl_completion_matches(str,node_generator);
 			else if(cursoledArgment == 3){
 				selectedNodeName = args[cursoledArgment - 1];
 				ret = rl_completion_matches(str,pipe_generator);
+			}
+		}else if(strcmp(args[0],"timer") == 0){
+
+			if(cursoledArgment == 1){
+				userGeneraterPattern = (const char**)generatePatternTimer;
+				ret = rl_completion_matches(str,user_generator);
 			}
 		}
 
@@ -364,6 +384,7 @@ static void s_help(int* argc,char* argv[]){
 
 static void s_quit(int* argc,char* argv[]){
 	exit_flag = 1;
+	nodeSystemExit();
 }
 
 static void s_save(int* argc,char* argv[]){
@@ -396,7 +417,7 @@ static void s_load(int* argc,char* argv[]){
 }
 
 static void s_run(int* argc,char* argv[]){
-	int code = nodeSystemAdd(argv[1],&argv[1]);
+	int code = nodeSystemAddNode(argv[1],&argv[1]);
 	if(code  != 0)
 		fprintf(stdout,"add node failed:code %d\n",code);
 	else
@@ -434,7 +455,7 @@ static void s_clear(int* argc,char* argv[]){
 }
 
 static void s_list(int* argc,char* argv[]){
-	nodeSystemList(argc,argv);
+	nodeSystemPrintNodeList(argc,argv);
 }
 
 static void s_const(int* argc,char* argv[]){
@@ -478,6 +499,39 @@ static void s_const(int* argc,char* argv[]){
 			free(value);
 		}
 	}else{
-
+		fprintf(stdout,"%s is invalid option\n",argv[1]);
 	}
+}
+
+static void s_timer(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	if(strcmp(argv[1],"run") == 0){
+		nodeSystemTimerRun();
+	}else if(strcmp(argv[1],"stop") == 0){
+		nodeSystemTimerStop();
+	}else if(strcmp(argv[1],"get") == 0){
+		nodeSystemTimerGet();
+	}else if(strcmp(argv[1],"set") == 0){
+		if(*argc < 3){
+			fprintf(stdout,"too few argment\n");
+			return;
+		}
+
+		double period;
+		if(sscanf(argv[2],"%lf",&period) == 1)
+			nodeSystemTimerSet(period);
+		else
+			fprintf(stdout,"%s is invalid\n",argv[2]);
+	}else{
+		fprintf(stdout,"%s is invalid option\n",argv[1]);
+	}
+}
+
+void sigint_handle(int sig){
+	nodeSystemExit();
+	exit(0);
 }
