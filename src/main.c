@@ -3,7 +3,7 @@
 #include <string.h>
 #include <script-tree.h>
 
-#define VERSION "0.0.0"
+#define VERSION "1.0.0"
 
 extern void lunch(int* argc,char* argv[]);
 
