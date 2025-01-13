@@ -15,7 +15,7 @@ int main(int argc,char* argv[])
 {
 	//print version when no input 
 	if(argc < 2){
-		printf("%s:%s\n",argv[0],VERSION);
+		printf("%s version %s\n",argv[0],VERSION);
 		exit(0);
 	}
 	
