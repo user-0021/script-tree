@@ -8,4 +8,4 @@ OBJ_DIR = obj
 
 
 #Output
-OUTPUT = out
+OUTPUT = scriptTree

@@ -1,5 +1,5 @@
 #build executable file
-build:out
+build:scriptTree
 
 #make objs
 obj/lunch.o: src/lunch.c
@@ -14,10 +14,10 @@ obj/linear_list.o: library/linear_list/linear_list.c
 obj/nodeSystem.o: library/nodeSystem/nodeSystem.c
 	gcc -o obj/nodeSystem.o library/nodeSystem/nodeSystem.c -I include -I library/linear_list -I library/nodeSystem -D NODE_SYSTEM_HOST -c
 
-out: obj/lunch.o obj/main.o obj/linear_list.o obj/nodeSystem.o
-	gcc -o out obj/lunch.o obj/main.o obj/linear_list.o obj/nodeSystem.o -lreadline
+scriptTree: obj/lunch.o obj/main.o obj/linear_list.o obj/nodeSystem.o
+	gcc -o scriptTree obj/lunch.o obj/main.o obj/linear_list.o obj/nodeSystem.o -lreadline
 
-all: clean out
+all: clean scriptTree
 
 clean:
-	$(RM) out obj/lunch.o obj/main.o obj/linear_list.o obj/nodeSystem.o
+	$(RM) scriptTree obj/lunch.o obj/main.o obj/linear_list.o obj/nodeSystem.o

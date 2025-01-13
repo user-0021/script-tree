@@ -1,5 +1,5 @@
 *.o
-out
+scriptTree
 *.swp
 Logs
 .vscode
