@@ -1,7 +1,7 @@
 # ScriptTree
-[過渡解析をした記事](https://qiita.com/Uniter/items/33915d515e4624ea696c)
 
 - [ScriptTree](#scripttree)
+- [記事](#記事)
 - [scriptTreeとは](#scripttreeとは)
 - [インストール方法](#インストール方法)
 - [実行方法](#実行方法)
@@ -20,6 +20,9 @@
   - [timer stop　WakeUpタイマーの停止](#timer-stopwakeupタイマーの停止)
   - [timer set　WakeUpタイマーのピリオドの設定](#timer-setwakeupタイマーのピリオドの設定)
   - [timer get　WakeUpタイマーのピリオドの取得](#timer-getwakeupタイマーのピリオドの取得)
+
+# 記事
+[過渡解析をした記事](https://qiita.com/Uniter/items/33915d515e4624ea696c)
 
 # scriptTreeとは
 
