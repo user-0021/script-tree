@@ -37,19 +37,23 @@ static void s_list(int* argc,char* argv[]);
 static void s_clear(int* argc,char* argv[]);
 static void s_const(int* argc,char* argv[]);
 static void s_timer(int* argc,char* argv[]);
+static void s_kill(int* argc,char* argv[]);
+static void s_check(int* argc,char* argv[]);
 
 static const Command commandList[] = {
 	{"help",s_help,"help -- display this text"},
 	{"quit",s_quit,"quit -- quit work space"},
-	{"save",s_save,"save [-f savePath] -- save node relation to saveFilePath.(ignore inactive node)"},
-	{"load",s_load,"load [-f loadPath] -- load node relation from loadFilePath"},
-	{"run" ,s_run ,"run [-f programPath] -- run programPath as node"},
+	{"save",s_save,"save [savePath] -- save node relation to saveFilePath.(ignore inactive node)"},
+	{"load",s_load,"load [loadPath] -- load node relation from loadFilePath"},
+	{"run" ,s_run ,"run [programPath] -- run programPath as node"},
 	{"connect",s_connect,"connect [inNodeName] [inPipeName] [outNodeName] [outPipeName] -- connect ports"},
 	{"disconnect",s_disconnect,"disconnect [inNodeName] [inPipeName]  -- disconnect ports"},
 	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"},
 	{"const",s_const,"const [set/get] [constNodeName] [constPipeName] -- set/get const value"},
-	{"timer",s_timer,"timer [run/stop/set/get] -- run/stop timer or set/get period"}
+	{"timer",s_timer,"timer [run/stop/set/get] -- run/stop timer or set/get period"},
+	{"kill",s_kill,"kill [killNodeName] -- kill node"},
+	{"check",s_check,"check [filePath] -- Check if filePath is Node program"}
 };
 
 static const char* generatePatternSetGet[] = {"set","get",NULL};
@@ -361,6 +365,10 @@ char **nodeSystem_completion(const char* str,int start,int end){
 				userGeneraterPattern = (const char**)generatePatternTimer;
 				ret = rl_completion_matches(str,user_generator);
 			}
+		}else if(strcmp(args[0],"kill") == 0){
+
+			if(cursoledArgment == 1)
+				ret = rl_completion_matches(str,node_generator);
 		}
 
 		//free
@@ -528,6 +536,30 @@ static void s_timer(int* argc,char* argv[]){
 			fprintf(stdout,"%s is invalid\n",argv[2]);
 	}else{
 		fprintf(stdout,"%s is invalid option\n",argv[1]);
+	}
+}
+
+static void s_kill(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	nodeSystemKill(argv[1]);
+}
+
+static void s_check(int* argc,char* argv[]){
+	if(*argc < 2){
+		fprintf(stdout,"too few argment\n");
+		return;
+	}
+
+	int res = nodeSystemCheck(argv[1]);
+
+	if(res == 0){
+		fprintf(stdout,"%s is node file\n",argv[1]);
+	}else{
+		fprintf(stdout,"%s is not node file\n",argv[1]);
 	}
 }
 

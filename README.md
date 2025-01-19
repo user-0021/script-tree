@@ -6,20 +6,22 @@
 - [インストール方法](#インストール方法)
 - [実行方法](#実行方法)
 - [使い方](#使い方)
-  - [help　コマンドの表示](#helpコマンドの表示)
-  - [quit　システムの終了](#quitシステムの終了)
-  - [save　Nodeの保存](#savenodeの保存)
-  - [load　保存したファイルの読み込み](#load保存したファイルの読み込み)
-  - [run　Nodeの起動](#runnodeの起動)
-  - [connect　パイプの接続](#connectパイプの接続)
-  - [disconnect　パイプの切断](#disconnectパイプの切断)
-  - [list　Nodeリストの表示](#listnodeリストの表示)
-  - [clear　コンソールバッファのクリア](#clearコンソールバッファのクリア)
-  - [const set　コンストパイプの設定](#const-setコンストパイプの設定)
-  - [timer run　WakeUpタイマーの起動](#timer-runwakeupタイマーの起動)
-  - [timer stop　WakeUpタイマーの停止](#timer-stopwakeupタイマーの停止)
-  - [timer set　WakeUpタイマーのピリオドの設定](#timer-setwakeupタイマーのピリオドの設定)
-  - [timer get　WakeUpタイマーのピリオドの取得](#timer-getwakeupタイマーのピリオドの取得)
+	- [help　コマンドの表示](#helpコマンドの表示)
+	- [quit　システムの終了](#quitシステムの終了)
+	- [save　Nodeの保存](#savenodeの保存)
+	- [load　保存したファイルの読み込み](#load保存したファイルの読み込み)
+	- [run　Nodeの起動](#runnodeの起動)
+	- [connect　パイプの接続](#connectパイプの接続)
+	- [disconnect　パイプの切断](#disconnectパイプの切断)
+	- [list　Nodeリストの表示](#listnodeリストの表示)
+	- [clear　コンソールバッファのクリア](#clearコンソールバッファのクリア)
+	- [const set　コンストパイプの設定](#const-setコンストパイプの設定)
+	- [timer run　WakeUpタイマーの起動](#timer-runwakeupタイマーの起動)
+	- [timer stop　WakeUpタイマーの停止](#timer-stopwakeupタイマーの停止)
+	- [timer set　WakeUpタイマーのピリオドの設定](#timer-setwakeupタイマーのピリオドの設定)
+	- [timer get　WakeUpタイマーのピリオドの取得](#timer-getwakeupタイマーのピリオドの取得)
+	- [kill　ActiveNodeの削除](#killactivenodeの削除)
+	- [check Nodeファイルの検知](#check-nodeファイルの検知)
 
 # 記事
 [過渡解析をした記事](https://qiita.com/Uniter/items/33915d515e4624ea696c)
@@ -213,4 +215,20 @@ wakeUpタイマーとはWait状態のNodeを定期的に起動するタイマー
 
 ```
 >>> timer get
+```
+
+## kill　ActiveNodeの削除
+
+`kill`コマンドを使用してActiveNodeを削除できます。  
+
+```
+>>> kill KILL_NODE_NAME
+```
+
+## check Nodeファイルの検知
+
+`check`コマンドを使用してファイルがNodeプログラムかを調べることができます。  
+
+```
+>>> check CHECK_FILE_PATH
 ```
