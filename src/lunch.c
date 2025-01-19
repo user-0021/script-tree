@@ -49,7 +49,7 @@ static const Command commandList[] = {
 	{"list" ,s_list,"list -- show node list"},
 	{"clear",s_clear,"clear -- clear display"},
 	{"const",s_const,"const [set/get] [constNodeName] [constPipeName] -- set/get const value"},
-	{"timer",s_timer,"timer [run/stop] -- run/stop timer"}
+	{"timer",s_timer,"timer [run/stop/set/get] -- run/stop timer or set/get period"}
 };
 
 static const char* generatePatternSetGet[] = {"set","get",NULL};

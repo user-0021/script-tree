@@ -3,7 +3,7 @@
 #include <string.h>
 #include <script-tree.h>
 
-#define VERSION "0.0.0"
+#define VERSION "1.0.0"
 
 extern void lunch(int* argc,char* argv[]);
 
@@ -15,7 +15,7 @@ int main(int argc,char* argv[])
 {
 	//print version when no input 
 	if(argc < 2){
-		printf("%s:%s",argv[0],VERSION);
+		printf("%s version %s\n",argv[0],VERSION);
 		exit(0);
 	}
 	
