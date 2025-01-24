@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <script-tree.h>
-
-#define VERSION "1.1.0"
+#include <nodeSystem.h>
 
 extern void lunch(int* argc,char* argv[]);
 
@@ -15,7 +14,7 @@ int main(int argc,char* argv[])
 {
 	//print version when no input 
 	if(argc < 2){
-		printf("%s version %s\n",argv[0],VERSION);
+		printf("%s version %s\n",argv[0],VARSION_STR);
 		exit(0);
 	}
 	
