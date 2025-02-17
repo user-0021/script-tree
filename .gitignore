@@ -3,4 +3,4 @@ scriptTree
 *.swp
 Logs
 .vscode
-logDelete.sh
+*.sh

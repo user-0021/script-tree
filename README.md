@@ -6,6 +6,7 @@
 - [インストール方法](#インストール方法)
 - [実行方法](#実行方法)
 - [使い方](#使い方)
+- [lunch　ノードシステムの起動](#lunch　ノードシステムの起動)
 	- [help　コマンドの表示](#helpコマンドの表示)
 	- [quit　システムの終了](#quitシステムの終了)
 	- [save　Nodeの保存](#savenodeの保存)
@@ -81,6 +82,15 @@ ScriptTreeを使うにはNodeプログラムを用意する必要があります
 自作のNodeを作成したい場合は[nodeSystem](https://github.com/user-0021/nodeSystem)
 を使用して作成することができます。  
 使用方法の例は[nodeExample](https://github.com/user-0021/nodeExample)を参照してください。
+
+# lunch　ノードシステムの起動
+
+`lunch` オプションを利用してノードシステムを起動できます。
+ノードシステム上で扱えるコマンドを次に示します。
+
+```
+./scriptTree lunch
+```
 
 ## help　コマンドの表示
 
